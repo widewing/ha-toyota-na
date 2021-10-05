@@ -1,0 +1,17 @@
+{
+    "config": {
+      "step": {
+        "user": {
+          "title": "Toyota Connected Services",
+          "description": "Please input the authorization code below",
+          "data": {
+            "authorization_code": "Authorization Code"
+          }
+        }
+      },
+      "error": {
+        "not_logged_in": "Not logged in",
+        "unknown": "Unexpected error."
+      }
+    }
+  }
