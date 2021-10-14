@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from toyota_na import ToyotaOneClient, ToyotaOneAuth
+from toyota_na.exceptions import AuthError
 
 from .const import DOMAIN
 
@@ -23,7 +24,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             callback=lambda tokens: update_tokens(tokens, hass, entry)
         )
     )
-    await client.auth.check_tokens()
+    try:
+        await client.auth.check_tokens()
+    except AuthError as e:
+        raise ConfigEntryAuthFailed(e) from e
     
     coordinator = DataUpdateCoordinator(
         hass,
@@ -60,9 +64,11 @@ async def update_vehicles_status(client: ToyotaOneClient):
             vehicle["health_status"] = await client.get_vehicle_health_status(vin)
             vehicle["odometer_detail"] = await client.get_odometer_detail(vin)
         return vehicles
+    except AuthError as e:
+        raise ConfigEntryAuthFailed(e) from e
     except Exception as e:
         _LOGGER.exception("Error fetching data")
-        raise UpdateFailed() from e
+        raise UpdateFailed(e) from e
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):

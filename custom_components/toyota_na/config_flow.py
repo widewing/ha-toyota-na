@@ -15,68 +15,38 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
-            try:
-                client = ToyotaOneClient()
-                await client.auth.login(user_input["authorization_code"])
-                id_info = await client.auth.get_id_info()
-                return self.async_create_entry(
-                    title=id_info["email"],
-                    data={
-                        "tokens": client.auth.get_tokens(),
-                        "email": id_info["email"]
-                    }
-                )
-            except NotLoggedIn:
-                errors["base"] = "not_logged_in"
-                _LOGGER.error("Not logged in")
-            except Exception as e:
-                errors["base"] = "unknown"
-                _LOGGER.exception("Unknown error")
-                
+            data = await self.async_get_entry_data(user_input, errors)
+            if data:
+                return await self.async_create_or_update_entry(data=data)
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({vol.Required("authorization_code"): str}),
             errors=errors
         )
 
-    # @staticmethod
-    # @callback
-    # def async_get_options_flow(config_entry):
-    #     return ToyotaNAOptionsFlowHandler(config_entry)
+    async def async_get_entry_data(self, user_input, errors):
+        try:
+            client = ToyotaOneClient()
+            await client.auth.login(user_input["authorization_code"])
+            id_info = await client.auth.get_id_info()
+            return {
+                "tokens": client.auth.get_tokens(),
+                "email": id_info["email"]
+            }
+        except AuthError:
+            errors["base"] = "not_logged_in"
+            _LOGGER.error("Not logged in")
+        except Exception as e:
+            errors["base"] = "unknown"
+            _LOGGER.exception("Unknown error")
 
+    async def async_create_or_update_entry(self, data):
+        existing_entry = await self.async_set_unique_id(f"{DOMAIN}:{data['email']}")
+        if existing_entry:
+            self.hass.config_entries.async_update_entry(existing_entry, data=data)
+            await self.hass.config_entries.async_reload(existing_entry.entry_id)
+            return self.async_abort(reason="reauth_successful")
+        return self.async_create_entry(title=data["email"], data=data)
 
-# class ToyotaNAOptionsFlowHandler(config_entries.OptionsFlow):
-#     """Config flow options handler for Toyota Connected Services."""
-
-#     def __init__(self, config_entry):
-#         """Initialize options flow."""
-#         self.config_entry = config_entry
-#         # Cast from MappingProxy to dict to allow update.
-#         self.options = dict(config_entry.options)
-
-#     async def async_step_init(self, user_input=None):
-#         """Manage the options."""
-#         if user_input is not None:
-#             try:
-#                 client = ToyotaOneClient()
-#                 await client.auth.login(user_input["authorization_code"])
-#                 id_info = await client.auth.get_id_info()
-#                 return self.async_create_entry(
-#                     title=id_info["email"],
-#                     data={
-#                         "tokens": client.auth.get_tokens(),
-#                         "email": id_info["email"]
-#                     }
-#                 )
-#             except NotLoggedIn:
-#                 errors["base"] = "not_logged_in"
-#                 _LOGGER.error("Not logged in")
-#             except Exception as e:
-#                 errors["base"] = "unknown"
-#                 _LOGGER.exception("Unknown error")
-                
-#         return self.async_show_form(
-#             step_id="init",
-#             data_schema=vol.Schema({vol.Required("authorization_code"): str}),
-#             errors=errors
-#         )
+    async def async_step_reauth(self, data):
+        return await self.async_step_user()
