@@ -27,4 +27,4 @@ However it's not guarenteed to always keep the session available, it will need t
 
 
 ## Credits
-Thanks @DurgNomis-drol for making the the original [Toyota Integration](https://github.com/DurgNomis-drol/ha_toyota) and for providing many suggestions.
+Thanks @DurgNomis-drol for making the the original [Toyota Integration](https://github.com/DurgNomis-drol/ha_toyota) and bringing up the discussion thread at https://github.com/DurgNomis-drol/mytoyota/issues/7.
