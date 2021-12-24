@@ -13,7 +13,8 @@ This is a experimental Home Assistant integration for Toyota North America.
 ## Configuration
 Click "Add integration" from Home Assistant, search "Toyota (North America)", click to add.
 
-It will ask for `authorization_code`. Follow https://github.com/widewing/toyota-na to get the code.
+It will ask for `Authorization Code`. Follow https://github.com/widewing/toyota-na to get the code.
+![image](https://user-images.githubusercontent.com/4755389/147372351-7bcfa033-e29e-4822-99e4-185bb7d01d35.png)
 
 After setting up, Most information in Toyota One app should be available in Home Assistant. Furthurmore the **Real-time location** can also be retrieved.
 ![image](https://user-images.githubusercontent.com/4755389/147372309-554ae09b-aa9f-46ae-b434-a9582dc99119.png)
