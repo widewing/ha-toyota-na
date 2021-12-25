@@ -20,18 +20,23 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_create_or_update_entry(data=data)
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({vol.Required("authorization_code"): str}),
+            data_schema=vol.Schema({
+                vol.Required("username"): str,
+                vol.Required("password"): str
+            }),
             errors=errors
         )
 
     async def async_get_entry_data(self, user_input, errors):
         try:
             client = ToyotaOneClient()
-            await client.auth.login(user_input["authorization_code"])
+            await client.auth.login(user_input["username"], user_input["password"])
             id_info = await client.auth.get_id_info()
             return {
                 "tokens": client.auth.get_tokens(),
-                "email": id_info["email"]
+                "email": id_info["email"],
+                "username": user_input["username"],
+                "password": user_input["password"]
             }
         except AuthError:
             errors["base"] = "not_logged_in"

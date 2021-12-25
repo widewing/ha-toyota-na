@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from toyota_na import ToyotaOneClient, ToyotaOneAuth
-from toyota_na.exceptions import AuthError
+from toyota_na.exceptions import AuthError, LoginError
 
 from .const import DOMAIN
 
@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         _LOGGER,
         name=DOMAIN,
-        update_method=lambda: update_vehicles_status(client),
+        update_method=lambda: update_vehicles_status(client, entry),
         update_interval=timedelta(minutes=1),
     )
     await coordinator.async_config_entry_first_refresh()
@@ -48,13 +48,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 
 def update_tokens(tokens, hass: HomeAssistant, entry: ConfigEntry):
-    _LOGGER.warn("Tokens refreshed, updating ConfigEntry")
+    _LOGGER.info("Tokens refreshed, updating ConfigEntry")
     data = dict(entry.data)
     data["tokens"] = tokens
     hass.config_entries.async_update_entry(entry, data=data)
 
 
-async def update_vehicles_status(client: ToyotaOneClient):
+async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
     try:
         _LOGGER.warn("Updating vehicle status")
         vehicles = await client.get_user_vehicle_list()
@@ -65,7 +65,10 @@ async def update_vehicles_status(client: ToyotaOneClient):
             vehicle["odometer_detail"] = await client.get_odometer_detail(vin)
         return vehicles
     except AuthError as e:
-        raise ConfigEntryAuthFailed(e) from e
+        try:
+            client.login(entry.data["username"], entry.data["password"])
+        except LoginError:
+            raise ConfigEntryAuthFailed(e) from e
     except Exception as e:
         _LOGGER.exception("Error fetching data")
         raise UpdateFailed(e) from e

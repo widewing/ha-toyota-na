@@ -3,9 +3,10 @@
       "step": {
         "user": {
           "title": "Toyota Connected Services",
-          "description": "Please input the authorization code below",
+          "description": "Please input the username and password",
           "data": {
-            "authorization_code": "Authorization Code"
+            "username": "Username",
+            "password": "Password"
           }
         }
       },
