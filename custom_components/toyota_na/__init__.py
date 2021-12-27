@@ -68,6 +68,7 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         try:
             client.auth.login(entry.data["username"], entry.data["password"])
         except LoginError:
+            _LOGGER.exception("Error logging in")
             raise ConfigEntryAuthFailed(e) from e
     except Exception as e:
         _LOGGER.exception("Error fetching data")
