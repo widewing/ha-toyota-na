@@ -66,7 +66,7 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         return vehicles
     except AuthError as e:
         try:
-            client.login(entry.data["username"], entry.data["password"])
+            client.auth.login(entry.data["username"], entry.data["password"])
         except LoginError:
             raise ConfigEntryAuthFailed(e) from e
     except Exception as e:
