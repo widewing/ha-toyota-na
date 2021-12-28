@@ -3,6 +3,7 @@
   "domains": ["device_tracker", "sensor"],
   "homeassistant": "2021.12.0",
   "iot_class": ["Cloud Polling"],
+  "render_readme": true,
   "zip_release": true,
   "filename": "ha_toyota_na.zip"
 }
