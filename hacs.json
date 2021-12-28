@@ -1,0 +1,8 @@
+{
+  "name": "Toyota (North America)",
+  "domains": ["device_tracker", "sensor"],
+  "homeassistant": "2021.12.0",
+  "iot_class": ["Cloud Polling"],
+  "zip_release": true,
+  "filename": "toyota_na.zip"
+}
