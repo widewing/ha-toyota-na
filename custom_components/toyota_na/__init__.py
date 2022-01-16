@@ -60,9 +60,18 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         vehicles = await client.get_user_vehicle_list()
         vehicles = {v["vin"]: {"info": v} for v in vehicles}
         for vin, vehicle in vehicles.items():
-            vehicle["status"] = await client.get_vehicle_status(vin)
-            vehicle["health_status"] = await client.get_vehicle_health_status(vin)
-            vehicle["odometer_detail"] = await client.get_odometer_detail(vin)
+            try:
+                vehicle["status"] = await client.get_vehicle_status(vin)
+            except Exception as e:
+                _LOGGER.warn("Error fetching vehicle status")
+            try:
+                vehicle["health_status"] = await client.get_vehicle_health_status(vin)
+            except Exception as e:
+                _LOGGER.warn("Error fetching vehicle health status")
+            try:
+                vehicle["odometer_detail"] = await client.get_odometer_detail(vin)
+            except Exception as e:
+                _LOGGER.warn("Error fetching odometer detail")
         return vehicles
     except AuthError as e:
         try:
