@@ -56,7 +56,7 @@ def update_tokens(tokens, hass: HomeAssistant, entry: ConfigEntry):
 
 async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
     try:
-        _LOGGER.warn("Updating vehicle status")
+        _LOGGER.debug("Updating vehicle status")
         vehicles = await client.get_user_vehicle_list()
         vehicles = {v["vin"]: {"info": v} for v in vehicles}
         for vin, vehicle in vehicles.items():
