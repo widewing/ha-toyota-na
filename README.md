@@ -4,6 +4,11 @@
 This is a Home Assistant integration for Toyota North America.
 
 ## Installation
+### HACS
+1. Install HACS: https://hacs.xyz/docs/setup/download
+2. Search and install "Toyota (North America)" in HACS integration store
+
+### Manual installation:
 1. Download this repo by either of the following method
 - `git clone https://github.com/widewing/ha-toyota-na`
 - Download https://github.com/widewing/ha-toyota-na/archive/refs/heads/master.zip
@@ -17,6 +22,9 @@ Enter your username and password for Toyota One App or Toyota Entune App and all
 
 After setting up, Most information in Toyota One app should be available in Home Assistant. Furthurmore the **Real-time location** can also be retrieved.
 ![image](https://user-images.githubusercontent.com/4755389/147372481-4d280b6e-6f61-434c-a768-f4a089f009c3.png)
+
+## Discord
+https://discord.gg/mFHJYew658
 
 ## Credits
 Thanks @DurgNomis-drol for making the the original [Toyota Integration](https://github.com/DurgNomis-drol/ha_toyota) and bringing up the discussion thread at https://github.com/DurgNomis-drol/mytoyota/issues/7.
