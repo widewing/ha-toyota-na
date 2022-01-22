@@ -21,11 +21,11 @@ class ToyotaNABaseEntity(CoordinatorEntity):
     def device_info(self):
         return {
             "identifiers": {(DOMAIN, self.vin)},
-            "name": self.vin,
+            "name": self.vehicle_info["displayModelDescription"],
             "model": f'{self.vehicle_info["modelYear"]} {self.vehicle_info["modelDescription"]}',
             "manufacturer": "Toyota Motor North America",
         }
-    
+
     @property
     def vehicle(self):
         return self.coordinator.data[self.vin]
