@@ -1,18 +1,29 @@
 import logging
 from datetime import timedelta
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import (
+    device_registry as dr,
+    service,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from toyota_na import ToyotaOneClient, ToyotaOneAuth
 from toyota_na.exceptions import AuthError, LoginError
+
+import voluptuous as vol
 
 from .const import DOMAIN
 
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "device_tracker"]
+
+SERVICE_DOOR_LOCK = "door_lock"
+SERVICE_DOOR_UNLOCK = "door_unlock"
+SERVICE_ENGINE_START = "engine_start"
+SERVICE_ENGINE_STOP = "engine_stop"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -43,6 +54,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     }
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+
+    @service.verify_domain_control(hass, DOMAIN)
+    async def async_service_handle(service_call: ServiceCall) -> None:
+        """Handle dispatched services."""
+
+        device_registry = dr.async_get(hass)
+        device = device_registry.async_get(service_call.data["vehicle"])
+        remote_action = service_call.service.replace("_", "-")
+
+        for identifier in device.identifiers:
+            if identifier[0] == DOMAIN:
+
+                vin = identifier[1]
+
+                _LOGGER.info(
+                    "Handling service call %s for %s ",
+                    remote_action,
+                    vin,
+                )
+
+                await client.remote_request(vin, remote_action)
+
+        return True
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_DOOR_UNLOCK, async_service_handle)
+    hass.services.async_register(
+        DOMAIN, SERVICE_DOOR_LOCK, async_service_handle)
+    hass.services.async_register(
+        DOMAIN, SERVICE_ENGINE_START, async_service_handle)
+    hass.services.async_register(
+        DOMAIN, SERVICE_ENGINE_STOP, async_service_handle)
 
     return True
 
