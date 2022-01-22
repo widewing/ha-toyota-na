@@ -20,7 +20,7 @@ Click "Add integration" from Home Assistant, search "Toyota (North America)", cl
 
 Enter your username and password for Toyota One App or Toyota Entune App and all set.
 
-After setting up, Most information in Toyota One app should be available in Home Assistant. Furthurmore the **Real-time location** can also be retrieved.
+After setting up, Most information in Toyota One app should be available in Home Assistant.
 ![image](https://user-images.githubusercontent.com/4755389/147372481-4d280b6e-6f61-434c-a768-f4a089f009c3.png)
 
 ## Discord
