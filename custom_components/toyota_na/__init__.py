@@ -17,7 +17,7 @@ PLATFORMS = ["sensor", "device_tracker"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
-    
+
     client = ToyotaOneClient(
         ToyotaOneAuth(
             initial_tokens=entry.data["tokens"],
@@ -28,7 +28,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         await client.auth.check_tokens()
     except AuthError as e:
         raise ConfigEntryAuthFailed(e) from e
-    
+
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -60,6 +60,8 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         vehicles = await client.get_user_vehicle_list()
         vehicles = {v["vin"]: {"info": v} for v in vehicles}
         for vin, vehicle in vehicles.items():
+            if vehicle["info"]["remoteSubscriptionStatus"] != 'ACTIVE':
+                continue
             try:
                 vehicle["status"] = await client.get_vehicle_status(vin)
             except Exception as e:
