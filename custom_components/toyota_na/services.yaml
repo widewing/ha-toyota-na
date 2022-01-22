@@ -1,0 +1,40 @@
+door_lock:
+  description: Remote lock your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to lock.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+door_unlock:
+  description: Remote unlock your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to unlock.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+engine_start:
+  description: Remote start your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to start.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+engine_stop:
+  description: Remote stop your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to stop.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
