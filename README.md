@@ -3,6 +3,22 @@
 ## Introduction
 This is a Home Assistant integration for Toyota North America.
 
+## Current features
+Sensors:
+* Door lock status
+* Window/Moonroof status
+* Trunk Status
+* Real time location
+* Last Parked Location
+* Tire Pressure
+* Fuel Level
+* Odometer
+* Oil Status
+* Key Fob Battery Status
+
+Services:
+* Lock/Unlock Doors
+* Remote Start/Stop Engine
 ## Installation
 ### HACS
 1. Install HACS: https://hacs.xyz/docs/setup/download
