@@ -3,16 +3,11 @@ from datetime import timedelta
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import (
-    device_registry as dr,
-    service,
-)
+from homeassistant.helpers import device_registry as dr, service
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from toyota_na import ToyotaOneClient, ToyotaOneAuth
 from toyota_na.exceptions import AuthError, LoginError
-
-import voluptuous as vol
 
 from .const import DOMAIN
 
@@ -71,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 _LOGGER.info(
                     "Handling service call %s for %s ",
                     remote_action,
-                    vin,
+                    vin
                 )
 
                 await client.remote_request(vin, remote_action)
