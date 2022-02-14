@@ -57,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         _LOGGER,
         name=DOMAIN,
         update_method=lambda: update_vehicles_status(client, entry),
-        update_interval=timedelta(seconds=20),
+        update_interval=timedelta(minutes=2),
     )
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = {
