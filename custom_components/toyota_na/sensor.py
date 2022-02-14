@@ -1,145 +1,85 @@
-from homeassistant.const import PERCENTAGE
+from typing import Any, Union, cast
 
-from .const import DOMAIN
+from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
+from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
+
+from homeassistant.components.sensor import SensorStateClass
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
 from .base_entity import ToyotaNABaseEntity
+from .const import DOMAIN, SENSORS
 
 
-async def async_setup_entry(hass, config_entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_devices: AddEntitiesCallback,
+):
     """Set up the sensor platform."""
     sensors = []
 
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
+        config_entry.entry_id
+    ]["coordinator"]
 
-    sensor_types = [
-        (ToyotaNAFuelSensor, "fuel level"),
-        (ToyotaNAOilSensor, "oil status"),
-        (ToyotaNAKeyBatSensor, "key battery status"),
-        (lambda *args: ToyotaNAOdometerSensor("odometer", *args), "odometer"),
-        (lambda *args: ToyotaNAOdometerSensor("tripA", *args), "trip a"),
-        (lambda *args: ToyotaNAOdometerSensor("tripB", *args), "trip b"),
-        (lambda *args: ToyotaNAOdometerSensor("distanceToEmpty", *args), "distance to empty"),
-        (lambda *args: ToyotaNAOdometerSensor("nextService", *args), "next service"),
-        (lambda *args: ToyotaNATirePressureSensor("flTirePressure", *args), "tire pressure front left"),
-        (lambda *args: ToyotaNATirePressureSensor("frTirePressure", *args), "tire pressure front right"),
-        (lambda *args: ToyotaNATirePressureSensor("rlTirePressure", *args), "tire pressure rear left"),
-        (lambda *args: ToyotaNATirePressureSensor("rrTirePressure", *args), "tire pressure rear right")
-    ]
-
-    for vin in coordinator.data:
-        for sensor_class, sensor_name in sensor_types:
-            sensor = sensor_class(coordinator, vin, sensor_name)
-            if sensor.available:
-                sensors.append(sensor)
-
-        door_window_sensor = ToyotaNADoorWindowSensor(None, None, coordinator, vin, None)
-        for category, section in door_window_sensor.list_sections():
-            sensors.append(
-                ToyotaNADoorWindowSensor(category, section, coordinator, vin, f"{category} {section}")
+    for vehicle in coordinator.data:
+        for feature_sensor in SENSORS:
+            feature = vehicle.features.get(
+                cast(VehicleFeatures, feature_sensor["feature"])
             )
+
+            entity_config = feature_sensor
+            if entity_config and isinstance(feature, ToyotaNumeric):
+                sensors.append(
+                    ToyotaNumericSensor(
+                        cast(VehicleFeatures, feature_sensor["feature"]),
+                        cast(str, entity_config["icon"]),
+                        cast(str, entity_config["unit"]),
+                        cast(SensorStateClass, entity_config["state_class"]),
+                        coordinator,
+                        entity_config["name"],
+                        vehicle.vin,
+                    )
+                )
 
     async_add_devices(sensors, True)
 
 
-class ToyotaNAOdometerSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:counter"
+class ToyotaNumericSensor(ToyotaNABaseEntity):
+    _icon: str
+    _vehicle_feature: VehicleFeatures
 
-    def __init__(self, field_name, *args):
+    def __init__(
+        self,
+        vehicle_feature: VehicleFeatures,
+        icon: str,
+        unit_of_measurement: str,
+        state_class: Union[SensorStateClass, str],
+        *args: Any,
+    ):
         super().__init__(*args)
-        self.field_name = field_name
+        self._icon = icon
+        self._state_class = state_class
+        self._unit_of_measurement = unit_of_measurement
+        self._vehicle_feature = vehicle_feature
+
+    @property
+    def icon(self) -> str:
+        return self._icon
+
+    @property
+    def state(self):
+        feat = cast(ToyotaNumeric, self.feature(self._vehicle_feature))
+        if feat:
+            return feat.value
+
+    @property
+    def state_class(self):
+        return self.feature(self._vehicle_feature) is not None
 
     @property
     def unit_of_measurement(self):
-        return self.vehicle_odometer_detail[self.field_name]["unit"]
-
-    @property
-    def state(self):
-        return int(self.vehicle_odometer_detail[self.field_name]["value"])
-
-    @property
-    def available(self):
-        return self.field_name in self.vehicle_odometer_detail
-
-class ToyotaNAFuelSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:gas-station"
-
-    @property
-    def unit_of_measurement(self):
-        return PERCENTAGE
-
-    @property
-    def state(self):
-        return int(self.vehicle_odometer_detail["fuelLevel"])
-
-    @property
-    def available(self):
-        return "fuelLevel" in self.vehicle_odometer_detail
-
-class ToyotaNAOilSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:oil-level"
-
-    @property
-    def state(self):
-        return int(self.vehicle_health_status["quantityOfEngOilStatus"])
-
-    @property
-    def available(self):
-        return "quantityOfEngOilStatus" in self.vehicle_health_status
-
-class ToyotaNAKeyBatSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:key-wireless"
-
-    @property
-    def state(self):
-        return int(self.vehicle_health_status["smartKeyBatStatus"])
-
-    @property
-    def available(self):
-        return "smartKeyBatStatus" in self.vehicle_health_status
-
-
-class ToyotaNATirePressureSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:car-tire-alert"
-
-    def __init__(self, field_name, *args):
-        super().__init__(*args)
-        self.field_name = field_name
-
-    @property
-    def unit_of_measurement(self):
-        return self.vehicle_odometer_detail[self.field_name]["unit"]
-
-    @property
-    def state(self):
-        return int(self.vehicle_odometer_detail[self.field_name]["value"])
-
-    @property
-    def available(self):
-        return self.field_name in self.vehicle_odometer_detail
-
-class ToyotaNADoorWindowSensor(ToyotaNABaseEntity):
-    _attr_icon = "mdi:car-door"
-
-    def __init__(self, category, section, *args):
-        super().__init__(*args)
-        self.category = category
-        self.section = section
-
-    def list_sections(self):
-        return [
-            (category["category"], section["section"])
-            for category in self.vehicle_status["vehicleStatus"]
-            for section in category["sections"]
-        ]
-
-    @property
-    def state(self):
-        for category in self.vehicle_status["vehicleStatus"]:
-            if category["category"] == self.category:
-                for section in category["sections"]:
-                    if section["section"] == self.section:
-                        return " ".join(v["value"] for v in section["values"])
-        return None
-
-    @property
-    def available(self):
-        return self.state is not None
+        return self._unit_of_measurement

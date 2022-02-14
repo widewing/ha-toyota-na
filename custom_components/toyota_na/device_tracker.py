@@ -1,42 +1,86 @@
 """Device tracker platform for Toyota Connected Services"""
 import logging
+from typing import Any, cast
+
+from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
+from toyota_na.vehicle.entity_types.ToyotaLocation import ToyotaLocation
 
 from homeassistant.components.device_tracker import SOURCE_TYPE_GPS
 from homeassistant.components.device_tracker.config_entry import TrackerEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN
 from .base_entity import ToyotaNABaseEntity
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-
-async def async_setup_entry(hass, config_entry, async_add_devices):
-    """Set up the Toyota Connected Services tracker from config entry."""
-    trackers = []
-
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-
-    for vin, vehicle in coordinator.data.items():
-        tracker = ToyotaNAParkingTracker(coordinator, vin, "parking location")
-        if tracker.available:
-            trackers.append(tracker)
-        tracker = ToyotaNALocationTracker(coordinator, vin, "realtime location")
-        if tracker.available:
-            trackers.append(tracker)
-
-    async_add_devices(trackers, True)
+features_sensors = [
+    {"feature": VehicleFeatures.ParkingLocation, "name": "Last Parked Location"},
+    {"feature": VehicleFeatures.RealTimeLocation, "name": "Current Location"},
+]
 
 
-class ToyotaNAParkingTracker(ToyotaNABaseEntity, TrackerEntity):
-    _attr_icon = "mdi:map-marker"
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_devices: AddEntitiesCallback,
+):
+    """Set up the device_tracker platform."""
+    locations = []
+
+    coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
+        config_entry.entry_id
+    ]["coordinator"]
+
+    _LOGGER.warn("ASDFADFADFADFAFAFAFAFADFA")
+
+    for vehicle in coordinator.data:
+        for feature_sensor in features_sensors:
+            feature = vehicle.features.get(
+                cast(VehicleFeatures, feature_sensor["feature"])
+            )
+
+            entity_config = feature_sensor
+            _LOGGER.warn(feature)
+            if entity_config and isinstance(feature, ToyotaLocation):
+                locations.append(
+                    ToyotaDeviceTracker(
+                        cast(VehicleFeatures, feature_sensor["feature"]),
+                        coordinator,
+                        entity_config["name"],
+                        vehicle.vin,
+                    )
+                )
+
+    async_add_devices(locations, True)
+
+
+class ToyotaDeviceTracker(ToyotaNABaseEntity, TrackerEntity):
+    _icon = "mdi:map-marker"
+    _vehicle_feature: VehicleFeatures
+
+    def __init__(self, feature: VehicleFeatures, *args: Any):
+        super().__init__(*args)
+        self._feature = feature
+
+    @property
+    def icon(self) -> str:
+        return self._icon
 
     @property
     def latitude(self):
-        return self.vehicle_status["latitude"]
+        feat = cast(ToyotaLocation, self.feature(self._feature))
+        if feat is not None:
+            return feat.lat
 
     @property
     def longitude(self):
-        return self.vehicle_status["longitude"]
+        feat = cast(ToyotaLocation, self.feature(self._feature))
+        if feat is not None:
+            return feat.value
 
     @property
     def source_type(self):
@@ -44,24 +88,4 @@ class ToyotaNAParkingTracker(ToyotaNABaseEntity, TrackerEntity):
 
     @property
     def available(self):
-        return "latitude" in self.vehicle_status
-
-
-class ToyotaNALocationTracker(ToyotaNABaseEntity, TrackerEntity):
-    _attr_icon = "mdi:map-marker"
-
-    @property
-    def latitude(self):
-        return self.vehicle_odometer_detail["vehicleLocation"]["latitude"]
-
-    @property
-    def longitude(self):
-        return self.vehicle_odometer_detail["vehicleLocation"]["longitude"]
-
-    @property
-    def source_type(self):
-        return SOURCE_TYPE_GPS
-
-    @property
-    def available(self):
-        return "vehicleLocation" in self.vehicle_odometer_detail
+        return self.feature(self._feature) is not None
