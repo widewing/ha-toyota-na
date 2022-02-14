@@ -10,8 +10,10 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Toyota (North America) connected services"""
+
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
@@ -20,11 +22,10 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_create_or_update_entry(data=data)
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required("username"): str,
-                vol.Required("password"): str
-            }),
-            errors=errors
+            data_schema=vol.Schema(
+                {vol.Required("username"): str, vol.Required("password"): str}
+            ),
+            errors=errors,
         )
 
     async def async_get_entry_data(self, user_input, errors):
@@ -36,7 +37,7 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "tokens": client.auth.get_tokens(),
                 "email": id_info["email"],
                 "username": user_input["username"],
-                "password": user_input["password"]
+                "password": user_input["password"],
             }
         except AuthError:
             errors["base"] = "not_logged_in"

@@ -1,19 +1,35 @@
-import logging
+from ctypes import cast
 from datetime import timedelta
+import logging
+
+from toyota_na.auth import ToyotaOneAuth
+from toyota_na.client import ToyotaOneClient
+from toyota_na.exceptions import AuthError, LoginError
+from toyota_na.vehicle.base_vehicle import RemoteRequestCommand, ToyotaVehicle
+from toyota_na.vehicle.vehicle import get_vehicles
+
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr, service
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from toyota_na import ToyotaOneClient, ToyotaOneAuth
-from toyota_na.exceptions import AuthError, LoginError
-
 from .const import DOMAIN
 
-
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["sensor", "device_tracker"]
+PLATFORMS = ["binary_sensor", "device_tracker", "sensor"]
+
+SERVICE_DOOR_LOCK = "door_lock"
+SERVICE_DOOR_UNLOCK = "door_unlock"
+SERVICE_ENGINE_START = "engine_start"
+SERVICE_ENGINE_STOP = "engine_stop"
+
+commands = {
+    SERVICE_DOOR_LOCK: RemoteRequestCommand.DoorLock,
+    SERVICE_DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,
+    SERVICE_ENGINE_START: RemoteRequestCommand.EngineStart,
+    SERVICE_ENGINE_STOP: RemoteRequestCommand.EngineStop,
+}
 
 SERVICE_DOOR_LOCK = "door_lock"
 SERVICE_DOOR_UNLOCK = "door_unlock"
@@ -27,10 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     client = ToyotaOneClient(
         ToyotaOneAuth(
             initial_tokens=entry.data["tokens"],
-            callback=lambda tokens: update_tokens(tokens, hass, entry)
+            callback=lambda tokens: update_tokens(tokens, hass, entry),
         )
     )
     try:
+        client.auth.set_tokens(entry.data["tokens"])
         await client.auth.check_tokens()
     except AuthError as e:
         raise ConfigEntryAuthFailed(e) from e
@@ -40,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         _LOGGER,
         name=DOMAIN,
         update_method=lambda: update_vehicles_status(client, entry),
-        update_interval=timedelta(minutes=1),
+        update_interval=timedelta(seconds=20),
     )
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = {
@@ -56,36 +73,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         device_registry = dr.async_get(hass)
         device = device_registry.async_get(service_call.data["vehicle"])
-        remote_action = service_call.service.replace("_", "-")
+        remote_action = service_call.service
+
+        if device is None:
+            _LOGGER.warning("Device does not exist")
+            return
+
+        if coordinator.data is None:
+            _LOGGER.warning("No coordinator data")
+            return
 
         for identifier in device.identifiers:
             if identifier[0] == DOMAIN:
 
                 vin = identifier[1]
+                for vehicle in coordinator.data:
+                    if vehicle.vin == vin:
+                        await vehicle.send_command(commands[remote_action])
+                        break
 
-                _LOGGER.info(
-                    "Handling service call %s for %s ",
-                    remote_action,
-                    vin
-                )
+                _LOGGER.info("Handling service call %s for %s ", remote_action, vin)
 
-                await client.remote_request(vin, remote_action)
+        return
 
-        return True
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_DOOR_UNLOCK, async_service_handle)
-    hass.services.async_register(
-        DOMAIN, SERVICE_DOOR_LOCK, async_service_handle)
-    hass.services.async_register(
-        DOMAIN, SERVICE_ENGINE_START, async_service_handle)
-    hass.services.async_register(
-        DOMAIN, SERVICE_ENGINE_STOP, async_service_handle)
+    hass.services.async_register(DOMAIN, SERVICE_DOOR_LOCK, async_service_handle)
+    hass.services.async_register(DOMAIN, SERVICE_DOOR_UNLOCK, async_service_handle)
+    hass.services.async_register(DOMAIN, SERVICE_ENGINE_START, async_service_handle)
+    hass.services.async_register(DOMAIN, SERVICE_ENGINE_STOP, async_service_handle)
 
     return True
 
 
-def update_tokens(tokens, hass: HomeAssistant, entry: ConfigEntry):
+def update_tokens(tokens: dict[str, str], hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("Tokens refreshed, updating ConfigEntry")
     data = dict(entry.data)
     data["tokens"] = tokens
@@ -95,23 +114,12 @@ def update_tokens(tokens, hass: HomeAssistant, entry: ConfigEntry):
 async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
     try:
         _LOGGER.debug("Updating vehicle status")
-        vehicles = await client.get_user_vehicle_list()
-        vehicles = {v["vin"]: {"info": v} for v in vehicles}
-        for vin, vehicle in vehicles.items():
-            if vehicle["info"]["remoteSubscriptionStatus"] != 'ACTIVE':
-                continue
-            try:
-                vehicle["status"] = await client.get_vehicle_status(vin)
-            except Exception as e:
-                _LOGGER.warn("Error fetching vehicle status")
-            try:
-                vehicle["health_status"] = await client.get_vehicle_health_status(vin)
-            except Exception as e:
-                _LOGGER.warn("Error fetching vehicle health status")
-            try:
-                vehicle["odometer_detail"] = await client.get_odometer_detail(vin)
-            except Exception as e:
-                _LOGGER.warn("Error fetching odometer detail")
+        raw_vehicles = await get_vehicles(client)
+        vehicles: list[ToyotaVehicle] = []
+        for vehicle in raw_vehicles:
+            # if vehicle["info"]["remoteSubscriptionStatus"] != "ACTIVE":
+            #     continue
+            vehicles.append(vehicle)
         return vehicles
     except AuthError as e:
         try:
