@@ -50,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         client.auth.set_tokens(entry.data["tokens"])
         await client.auth.check_tokens()
     except AuthError as e:
+        _LOGGER.exception(e)
         raise ConfigEntryAuthFailed(e) from e
 
     coordinator = DataUpdateCoordinator(
