@@ -50,7 +50,3 @@ class ToyotaNABaseEntity(CoordinatorEntity[list[ToyotaVehicle]]):
     def vehicle(self) -> Union[ToyotaVehicle, None]:
         """Return the vehicle."""
         return next((v for v in self.coordinator.data if v.vin == self.vin), None)
-
-    @property
-    def available(self):
-        return self.vehicle is not None
