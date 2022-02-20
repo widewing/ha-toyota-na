@@ -30,8 +30,8 @@ class ToyotaNABaseEntity(CoordinatorEntity[list[ToyotaVehicle]]):
 
     @property
     def name(self):
-        return f"{self.sensor_name} {self.vin}"
-        # return f"{self.sensor_name.title()} {self.device_info['name']}"
+        if self.vehicle is not None:
+            return f"{self.sensor_name} {self.vehicle.model_name}"
 
     @property
     def unique_id(self):
@@ -39,10 +39,15 @@ class ToyotaNABaseEntity(CoordinatorEntity[list[ToyotaVehicle]]):
 
     @property
     def device_info(self) -> DeviceInfo:
+        model = None
+
+        if self.vehicle is not None:
+            model = f"{self.vehicle.model_year} {self.vehicle.model_name}"
+
         return {
             "identifiers": {(DOMAIN, self.vin)},
-            "name": self.vin,
-            # "model": f'{self.vehicle_info["modelYear"]} {self.vehicle_info["modelDescription"]}',
+            "name": model,
+            "model": model,
             "manufacturer": "Toyota Motor North America",
         }
 
