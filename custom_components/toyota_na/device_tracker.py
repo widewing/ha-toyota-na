@@ -35,8 +35,6 @@ async def async_setup_entry(
         config_entry.entry_id
     ]["coordinator"]
 
-    _LOGGER.warn("ASDFADFADFADFAFAFAFAFADFA")
-
     for vehicle in coordinator.data:
         for feature_sensor in features_sensors:
             feature = vehicle.features.get(
@@ -44,7 +42,6 @@ async def async_setup_entry(
             )
 
             entity_config = feature_sensor
-            _LOGGER.warn(feature)
             if entity_config and isinstance(feature, ToyotaLocation):
                 locations.append(
                     ToyotaDeviceTracker(
