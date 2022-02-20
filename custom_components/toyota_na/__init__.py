@@ -118,9 +118,13 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         raw_vehicles = await get_vehicles(client)
         vehicles: list[ToyotaVehicle] = []
         for vehicle in raw_vehicles:
-            # if vehicle["info"]["remoteSubscriptionStatus"] != "ACTIVE":
-            #     continue
+            if vehicle.subscribed is not True:
+                _LOGGER.warn(
+                    f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to be used with Home Assistant."
+                )
+                continue
             vehicles.append(vehicle)
+
         return vehicles
     except AuthError as e:
         try:
