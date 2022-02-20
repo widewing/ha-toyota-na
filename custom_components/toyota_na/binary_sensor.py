@@ -1,4 +1,5 @@
 from typing import Any, Union, cast
+import logging
 
 from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
 from toyota_na.vehicle.entity_types.ToyotaLockableOpening import ToyotaLockableOpening
@@ -16,6 +17,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .base_entity import ToyotaNABaseEntity
 from .const import BINARY_SENSORS, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -97,8 +100,18 @@ class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
                 ToyotaRemoteStart,
                 self.feature(self._vehicle_feature),
             )
-            if remote_start is not None and remote_start.time_left is not None:
-                return {"minutes_remaining": remote_start.time_left}
+            if (
+                remote_start is not None
+                and remote_start.time_left is not None
+                and remote_start.start_time is not None
+            ):
+
+                return {
+                    "end_time": remote_start.end_time,
+                    "minutes_remaining": remote_start.time_left,
+                    "start_time": remote_start.start_time,
+                    "total_runtime": remote_start.timer,
+                }
 
     @property
     def available(self):
