@@ -14,27 +14,17 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr, service
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN
+from .const import (
+    COMMAND_MAP,
+    DOMAIN,
+    DOOR_LOCK,
+    DOOR_UNLOCK,
+    ENGINE_START,
+    ENGINE_STOP,
+)
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "device_tracker", "sensor"]
-
-SERVICE_DOOR_LOCK = "door_lock"
-SERVICE_DOOR_UNLOCK = "door_unlock"
-SERVICE_ENGINE_START = "engine_start"
-SERVICE_ENGINE_STOP = "engine_stop"
-
-commands = {
-    SERVICE_DOOR_LOCK: RemoteRequestCommand.DoorLock,
-    SERVICE_DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,
-    SERVICE_ENGINE_START: RemoteRequestCommand.EngineStart,
-    SERVICE_ENGINE_STOP: RemoteRequestCommand.EngineStop,
-}
-
-SERVICE_DOOR_LOCK = "door_lock"
-SERVICE_DOOR_UNLOCK = "door_unlock"
-SERVICE_ENGINE_START = "engine_start"
-SERVICE_ENGINE_STOP = "engine_stop"
+PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -90,17 +80,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 vin = identifier[1]
                 for vehicle in coordinator.data:
                     if vehicle.vin == vin:
-                        await vehicle.send_command(commands[remote_action])
+                        await vehicle.send_command(COMMAND_MAP[remote_action])
                         break
 
                 _LOGGER.info("Handling service call %s for %s ", remote_action, vin)
 
         return
 
-    hass.services.async_register(DOMAIN, SERVICE_DOOR_LOCK, async_service_handle)
-    hass.services.async_register(DOMAIN, SERVICE_DOOR_UNLOCK, async_service_handle)
-    hass.services.async_register(DOMAIN, SERVICE_ENGINE_START, async_service_handle)
-    hass.services.async_register(DOMAIN, SERVICE_ENGINE_STOP, async_service_handle)
+    hass.services.async_register(DOMAIN, DOOR_LOCK, async_service_handle)
+    hass.services.async_register(DOMAIN, DOOR_UNLOCK, async_service_handle)
+    hass.services.async_register(DOMAIN, ENGINE_START, async_service_handle)
+    hass.services.async_register(DOMAIN, ENGINE_STOP, async_service_handle)
 
     return True
 

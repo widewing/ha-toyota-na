@@ -4,7 +4,22 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import LENGTH_MILES, PERCENTAGE, PRESSURE_PSI
 
+from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
+
+
 DOMAIN = "toyota_na"
+
+DOOR_LOCK = "door_lock"
+DOOR_UNLOCK = "door_unlock"
+ENGINE_START = "engine_start"
+ENGINE_STOP = "engine_stop"
+
+COMMAND_MAP = {
+    DOOR_LOCK: RemoteRequestCommand.DoorLock,
+    DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,
+    ENGINE_START: RemoteRequestCommand.EngineStart,
+    ENGINE_STOP: RemoteRequestCommand.EngineStop,
+}
 
 BINARY_SENSORS = [
     {
