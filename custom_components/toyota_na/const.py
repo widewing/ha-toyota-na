@@ -126,7 +126,7 @@ SENSORS = [
         "icon": "mdi:gauge",
         "feature": VehicleFeatures.DistanceToEmpty,
         "name": "Distance To Empty",
-        "unit": LENGTH_MILES,
+        "unit": "MI_OR_KM",
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
@@ -140,21 +140,21 @@ SENSORS = [
         "icon": "mdi:counter",
         "feature": VehicleFeatures.Odometer,
         "name": "Odometer",
-        "unit": LENGTH_MILES,
+        "unit": "MI_OR_KM",
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:counter",
         "feature": VehicleFeatures.TripDetailsA,
         "name": "Trip Details A",
-        "unit": LENGTH_MILES,
+        "unit": "MI_OR_KM",
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:counter",
         "feature": VehicleFeatures.TripDetailsB,
         "name": "Trip Details B",
-        "unit": LENGTH_MILES,
+        "unit": "MI_OR_KM",
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
