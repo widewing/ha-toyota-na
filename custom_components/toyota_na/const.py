@@ -191,4 +191,11 @@ SENSORS = [
         "name": "Spare Tire Pressure",
         "unit": PRESSURE_PSI,
     },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:wrench-clock",
+        "feature": VehicleFeatures.NextService,
+        "name": "Next Service",
+        "unit": LENGTH_MILES,
+    },
 ]
