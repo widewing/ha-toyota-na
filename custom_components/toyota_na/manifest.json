@@ -1,18 +1,11 @@
 {
-    "after_dependencies": [
-        "cloud",
-        "http"
-    ],
+    "after_dependencies": ["cloud","http"],
     "domain": "toyota_na",
     "name": "Toyota (North America)",
     "config_flow": true,
     "documentation": "https://github.com/widewing/ha_toyota_na",
-    "codeowners": [
-        "@vanstinator, @widewing, @jlmaners"
-    ],
-    "requirements": [
-        "toyota-na==1.1.1.dev37"
-    ],
+    "codeowners": ["@vanstinator, @widewing"],
+    "requirements": ["toyota-na==1.1.1.dev37"],
     "issue_tracker": "https://github.com/widewing/ha-toyota-na/issues",
     "version": "2.0.0-alpha.7",
     "iot_class": "cloud_polling"
