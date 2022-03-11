@@ -3,6 +3,9 @@
 ## Introduction
 This is a Home Assistant integration for Toyota North America.
 
+## Stable
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Release Date](https://img.shields.io/github/release-date/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Releases](https://img.shields.io/github/downloads/widewing/ha-toyota-na/latest/total?color=purple&label=%20release%20Downloads&style=for-the-badge) 
+
 ## Current features
 Sensors:
 * Door lock status
