@@ -17,8 +17,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     COMMAND_MAP,
     DOMAIN,
-    DOOR_LOCK,
-    DOOR_UNLOCK,
     ENGINE_START,
     ENGINE_STOP,
 )
@@ -87,8 +85,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         return
 
-    hass.services.async_register(DOMAIN, DOOR_LOCK, async_service_handle)
-    hass.services.async_register(DOMAIN, DOOR_UNLOCK, async_service_handle)
     hass.services.async_register(DOMAIN, ENGINE_START, async_service_handle)
     hass.services.async_register(DOMAIN, ENGINE_STOP, async_service_handle)
 
