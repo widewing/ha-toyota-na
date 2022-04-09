@@ -5,8 +5,8 @@
     "config_flow": true,
     "documentation": "https://github.com/widewing/ha_toyota_na",
     "codeowners": ["@vanstinator, @widewing"],
-    "requirements": ["toyota-na==2.0.2"],
+    "requirements": ["toyota-na==2.0.3"],
     "issue_tracker": "https://github.com/widewing/ha-toyota-na/issues",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "iot_class": "cloud_polling"
 }
