@@ -196,6 +196,6 @@ SENSORS = [
         "icon": "mdi:wrench-clock",
         "feature": VehicleFeatures.NextService,
         "name": "Next Service",
-        "unit": LENGTH_MILES,
+        "unit": "MI_OR_KM",
     },
 ]
