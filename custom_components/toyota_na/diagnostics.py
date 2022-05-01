@@ -38,6 +38,22 @@ async def async_get_config_entry_diagnostics(
     # We don't directly expose this from the vehicle api abstraction, but it's critical to dump this in diagnostics for debugging
     user_vehicle_list = await client.get_user_vehicle_list()
 
+    vehicle_details = []
+
+    for vehicle in user_vehicle_list:
+        try:
+            user_vehicle_status = await client.get_vehicle_status(
+                vin=vehicle["vin"], generation=vehicle["generation"]
+            )
+
+            user_vehicle_details = await client.get_vehicle_detail(
+                vin=user_vehicle_list[0]["vin"]
+            )
+
+            vehicle_details.append(user_vehicle_status)
+        except Exception:
+            continue
+
     return async_redact_data(
         {
             "config_entry": async_redact_data(dict(config_entry.data), TO_REDACT),
