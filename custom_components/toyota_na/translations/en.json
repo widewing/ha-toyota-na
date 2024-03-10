@@ -8,10 +8,18 @@
             "username": "Username",
             "password": "Password"
           }
+        },
+        "otp": {
+          "title": "Verfication code",
+          "description": "Check email or phone for verification code",
+          "data": {
+            "code": "Verification Code"
+          }
         }
       },
       "error": {
         "not_logged_in": "Not logged in",
+        "otp_not_logged_in": "Invalid Verification code",
         "unknown": "Unexpected error."
       }
     }
