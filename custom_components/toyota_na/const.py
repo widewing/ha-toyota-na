@@ -2,7 +2,7 @@ from toyota_na.vehicle.base_vehicle import VehicleFeatures
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import LENGTH_MILES, PERCENTAGE, PRESSURE_PSI
+from homeassistant.const import PERCENTAGE, UnitOfPressure
 
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
 
@@ -161,35 +161,35 @@ SENSORS = [
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.FrontDriverTire,
         "name": "Front Driver Tire",
-        "unit": PRESSURE_PSI,
+        "unit": UnitOfPressure.PSI,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.FrontPassengerTire,
         "name": "Front Passenger Tire",
-        "unit": PRESSURE_PSI,
+        "unit": UnitOfPressure.PSI,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.RearDriverTire,
         "name": "Rear Driver Tire",
-        "unit": PRESSURE_PSI,
+        "unit": UnitOfPressure.PSI,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.RearPassengerTire,
         "name": "Rear Passenger Tire",
-        "unit": PRESSURE_PSI,
+        "unit": UnitOfPressure.PSI,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.SpareTirePressure,
         "name": "Spare Tire Pressure",
-        "unit": PRESSURE_PSI,
+        "unit": UnitOfPressure.PSI,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,

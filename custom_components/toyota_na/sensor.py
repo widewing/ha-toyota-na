@@ -5,7 +5,7 @@ from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import LENGTH_KILOMETERS, LENGTH_MILES
+from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -89,8 +89,8 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         if self._unit_of_measurement == "MI_OR_KM":
             _unit = cast(ToyotaNumeric, self.feature(self._vehicle_feature)).unit
             if _unit == "mi":
-                return LENGTH_MILES
+                return UnitOfLength.MILES
             elif _unit == "km":
-                return LENGTH_KILOMETERS
+                return UnitOfLength.KILOMETERS
 
         return self._unit_of_measurement
