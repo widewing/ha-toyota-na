@@ -24,6 +24,58 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor"]
 
+async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
+    @service.verify_domain_control(hass, DOMAIN)
+    async def async_service_handle(service_call: ServiceCall) -> None:
+        """Handle dispatched services."""
+
+        device_registry = dr.async_get(hass)
+        device = device_registry.async_get(service_call.data["vehicle"])
+        remote_action = service_call.service
+
+        if device is None:
+            _LOGGER.warning("Device does not exist")
+            return
+
+        # There is currently not a case with this integration where
+        # the device will have more or less than one config entry
+        if len(device.config_entries) != 1:
+            _LOGGER.warning("Device missing config entry")
+            return
+
+        entry_id = list(device.config_entries)[0]
+
+        if entry_id not in hass.data[DOMAIN]:
+            _LOGGER.warning("Config entry not found")
+            return
+
+        if "coordinator" not in hass.data[DOMAIN][entry_id]:
+            _LOGGER.warning("Coordinator not found")
+            return
+
+        coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+
+        if coordinator.data is None:
+            _LOGGER.warning("No coordinator data")
+            return
+
+        for identifier in device.identifiers:
+            if identifier[0] == DOMAIN:
+
+                vin = identifier[1]
+                for vehicle in coordinator.data:
+                    if vehicle.vin == vin:
+                        await vehicle.send_command(COMMAND_MAP[remote_action])
+                        break
+
+                _LOGGER.info("Handling service call %s for %s ", remote_action, vin)
+
+        return
+
+    hass.services.async_register(DOMAIN, ENGINE_START, async_service_handle)
+    hass.services.async_register(DOMAIN, ENGINE_STOP, async_service_handle)
+
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
@@ -55,38 +107,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    @service.verify_domain_control(hass, DOMAIN)
-    async def async_service_handle(service_call: ServiceCall) -> None:
-        """Handle dispatched services."""
-
-        device_registry = dr.async_get(hass)
-        device = device_registry.async_get(service_call.data["vehicle"])
-        remote_action = service_call.service
-
-        if device is None:
-            _LOGGER.warning("Device does not exist")
-            return
-
-        if coordinator.data is None:
-            _LOGGER.warning("No coordinator data")
-            return
-
-        for identifier in device.identifiers:
-            if identifier[0] == DOMAIN:
-
-                vin = identifier[1]
-                for vehicle in coordinator.data:
-                    if vehicle.vin == vin:
-                        await vehicle.send_command(COMMAND_MAP[remote_action])
-                        break
-
-                _LOGGER.info("Handling service call %s for %s ", remote_action, vin)
-
-        return
-
-    hass.services.async_register(DOMAIN, ENGINE_START, async_service_handle)
-    hass.services.async_register(DOMAIN, ENGINE_STOP, async_service_handle)
 
     return True
 
