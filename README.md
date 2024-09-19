@@ -18,10 +18,22 @@ Sensors:
 * Odometer
 * Oil Status
 * Key Fob Battery Status
+* Last Update
+* Last Tire Pressure Update
+* Speed
+* EV Plug Status
+* EV Remaining Charge Time
+* EV Travel Distance
+* EV Charge Type
+* EV Charge Start Time
+* EV Charge End Time
+* EV Connector Status
 
 Services:
 * Lock/Unlock Doors
 * Remote Start/Stop Engine
+* Hazards On/Off
+* Refresh Data
 ## Installation
 ### HACS
 1. Install HACS: https://hacs.xyz/docs/setup/download
@@ -37,13 +49,10 @@ Services:
 ## Configuration
 Click "Add integration" from Home Assistant, search "Toyota (North America)", click to add.
 
-Enter your username and password for Toyota One App or Toyota Entune App and all set.
+Enter your username and password, and then OTP for Toyota One App or Toyota Entune App and all set.
 
 After setting up, Most information in Toyota One app should be available in Home Assistant.
 ![image](https://user-images.githubusercontent.com/4755389/147372481-4d280b6e-6f61-434c-a768-f4a089f009c3.png)
-
-## Discord
-https://discord.gg/mFHJYew658
 
 ## Credits
 Thanks @DurgNomis-drol for making the the original [Toyota Integration](https://github.com/DurgNomis-drol/ha_toyota) and bringing up the discussion thread at https://github.com/DurgNomis-drol/mytoyota/issues/7.
