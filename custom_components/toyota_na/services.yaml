@@ -23,7 +23,7 @@ hazards_on:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to start.
+        Device (vehicle) you wish to turn on hazard lights for.
       required: true
       selector:
         device:
@@ -33,7 +33,7 @@ hazards_off:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to stop.
+        Device (vehicle) you wish to turn off hazard lights for.
       required: true
       selector:
         device:
@@ -43,7 +43,7 @@ door_lock:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to start.
+        Device (vehicle) you wish to lock.
       required: true
       selector:
         device:
@@ -53,7 +53,7 @@ door_unlock:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to stop.
+        Device (vehicle) you wish to unlock.
       required: true
       selector:
         device:
@@ -63,7 +63,7 @@ refresh:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to stop.
+        Device (vehicle) you wish to refresh data for.
       required: true
       selector:
         device:
