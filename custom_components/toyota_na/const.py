@@ -13,12 +13,18 @@ DOOR_LOCK = "door_lock"
 DOOR_UNLOCK = "door_unlock"
 ENGINE_START = "engine_start"
 ENGINE_STOP = "engine_stop"
+HAZARDS_ON = "hazards_on"
+HAZARDS_OFF = "hazards_off"
+REFRESH = "refresh"
 
 COMMAND_MAP = {
     DOOR_LOCK: RemoteRequestCommand.DoorLock,
     DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,
     ENGINE_START: RemoteRequestCommand.EngineStart,
     ENGINE_STOP: RemoteRequestCommand.EngineStop,
+    HAZARDS_ON: RemoteRequestCommand.HazardsOn,
+    HAZARDS_OFF: RemoteRequestCommand.HazardsOff,
+    REFRESH: RemoteRequestCommand.Refresh,
 }
 
 BINARY_SENSORS = [
@@ -197,5 +203,82 @@ SENSORS = [
         "feature": VehicleFeatures.NextService,
         "name": "Next Service",
         "unit": "MI_OR_KM",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.ChargeDistance,
+        "name": "EV Range",
+        "unit": "MI_OR_KM",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.ChargeDistanceAC,
+        "name": "EV Range AC",
+        "unit": "MI_OR_KM",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.ChargeLevel,
+        "name": "EV Battery Level",
+        "unit": PERCENTAGE,
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.LastTimeStamp,
+        "name": "Last Update Timestamp",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.LastTirePressureTimeStamp,
+        "name": "Last Tire Pressure Update Timestamp",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.Speed,
+        "name": "Speed",
+        "unit": "km/h",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:ev-plug-type1",
+        "feature": VehicleFeatures.PlugStatus,
+        "name": "Plug Status",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:clock-outline",
+        "feature": VehicleFeatures.RemainingChargeTime,
+        "name": "Remaining Charge Time",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.EvTravelableDistance,
+        "name": "EV Travelable Distance",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:ev-plug-type1",
+        "feature": VehicleFeatures.ChargeType,
+        "name": "Charge Type",
+        "unit": "",
+    },
+    {
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:ev-plug-type1",
+        "feature": VehicleFeatures.ConnectorStatus,
+        "name": "Connector Status",
+        "unit": "",
     },
 ]

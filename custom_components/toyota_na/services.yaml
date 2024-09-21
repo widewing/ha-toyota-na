@@ -18,3 +18,53 @@ engine_stop:
       selector:
         device:
           integration: toyota_na
+hazards_on:
+  description: Hazards on your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to start.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+hazards_off:
+  description: Hazards off your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to stop.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+door_lock:
+  description: Lock your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to start.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+door_unlock:
+  description: Unlock your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to stop.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+refresh:
+  description: Refresh data for your Toyota vehicle.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to stop.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
