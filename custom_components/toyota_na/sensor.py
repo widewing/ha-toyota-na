@@ -92,7 +92,5 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
                 return UnitOfLength.MILES
             elif _unit == "km":
                 return UnitOfLength.KILOMETERS
-            else:
-                return UnitOfLength.KILOMETERS
 
         return self._unit_of_measurement
