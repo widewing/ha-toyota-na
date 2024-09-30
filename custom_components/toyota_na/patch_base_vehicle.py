@@ -19,7 +19,7 @@ class VehicleFeatures(Enum):
 
     # Charging Status
     ChargingStatus = auto()
-
+    
     # Numeric values
     DistanceToEmpty = auto()
     FrontDriverTire = auto()

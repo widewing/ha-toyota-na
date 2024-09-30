@@ -63,7 +63,7 @@ refresh:
   fields:
     vehicle:
       description:
-        Device (vehicle) you wish to stop.
+        Device (vehicle) you wish to refresh data for.
       required: true
       selector:
         device:
