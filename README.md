@@ -28,6 +28,7 @@ Sensors:
 * EV Charge Start Time
 * EV Charge End Time
 * EV Connector Status
+* EV Charging Status
 
 Services:
 * Lock/Unlock Doors

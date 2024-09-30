@@ -17,6 +17,9 @@ class VehicleFeatures(Enum):
     Moonroof = auto()
     Hood = auto()
 
+    # Charging Status
+    ChargingStatus = auto()
+    
     # Numeric values
     DistanceToEmpty = auto()
     FrontDriverTire = auto()

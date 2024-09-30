@@ -1,4 +1,4 @@
-"""Diagnostics support for AccuWeather."""
+"""Diagnostics support for ha-toyota-na."""
 from __future__ import annotations
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -24,6 +24,8 @@ TO_REDACT = {
     "subscriptionID",  # contains a vin number
     "username",
     "vin",
+    "latitude",
+    "longitude",
 }
 
 
@@ -37,27 +39,38 @@ async def async_get_config_entry_diagnostics(
 
     # We don't directly expose this from the vehicle api abstraction, but it's critical to dump this in diagnostics for debugging
     user_vehicle_list = await client.get_user_vehicle_list()
+    
+    vehicle_status = []
+    telemetry = []
+    engine_status = []
+    electric_status = []
 
-    vehicle_details = []
+    for (i, vehicle) in enumerate(user_vehicle_list):
+        vin=vehicle["vin"]
 
-    for vehicle in user_vehicle_list:
-        try:
-            user_vehicle_status = await client.get_vehicle_status(
-                vin=vehicle["vin"], generation=vehicle["generation"]
-            )
+        if (vehicle["generation"] == "17CYPLUS" or vehicle["generation"] == "21MM"):
+            generation = "17CYPLUS"
+        elif vehicle["generation"] == "17CY":
+            generation = "17CY"
 
-            user_vehicle_details = await client.get_vehicle_detail(
-                vin=user_vehicle_list[0]["vin"]
-            )
+        user_vehicle_status = await client.get_vehicle_status(vin, generation)
+        user_telemetry = await client.get_telemetry(vin, generation)
+        user_engine_status = await client.get_engine_status(vin, generation)
+        user_electric_status = await client.get_electric_status(vin)
 
-            vehicle_details.append(user_vehicle_status)
-        except Exception:
-            continue
+        vehicle_status.append(user_vehicle_status)
+        telemetry.append(user_telemetry)
+        engine_status.append(user_engine_status)
+        electric_status.append(user_electric_status)
 
     return async_redact_data(
         {
             "config_entry": async_redact_data(dict(config_entry.data), TO_REDACT),
-            "api": {"vehicle_list": user_vehicle_list},
+            "vehicle_list": {"data": user_vehicle_list},
+            "vehicle_status": {"data": vehicle_status},
+            "telemetry": {"data": telemetry},
+            "engine_status": {"data": engine_status},
+            "electric_status": {"data": electric_status},
         },
         TO_REDACT,
     )
