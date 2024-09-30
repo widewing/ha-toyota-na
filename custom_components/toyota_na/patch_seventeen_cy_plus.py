@@ -124,6 +124,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         #self._features[VehicleFeatures.ChargeStartTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeStartTime"], "")
         #self._features[VehicleFeatures.ChargeEndTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeEndTime"], "")
         self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"], "")
+        self._features[VehicleFeatures.ChargingStatus] = ToyotaOpening(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"] != "5")
 
     #
     # vehicle_health_status

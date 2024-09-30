@@ -124,6 +124,12 @@ BINARY_SENSORS = [
         "icon": "mdi:car-hatchback",
         "name": "Remote Start",
     },
+    {
+        "device_class": BinarySensorDeviceClass.BATTERY_CHARGING,
+        "feature": VehicleFeatures.ChargingStatus,
+        "icon": "mdi:ev-station",
+        "name": "Charging Status",
+    },
 ]
 
 SENSORS = [
