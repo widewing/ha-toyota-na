@@ -45,10 +45,10 @@ async def async_get_config_entry_diagnostics(
     engine_status = []
     electric_status = []
 
-    user_vehicle_status = auto()
-    user_telemetry = auto()
-    user_engine_status = auto()
-    user_electric_status = auto()
+    user_vehicle_status = ""
+    user_telemetry = ""
+    user_engine_status = ""
+    user_electric_status = ""
 
     for (i, vehicle) in enumerate(user_vehicle_list):
         vin=vehicle["vin"]
