@@ -75,23 +75,35 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         )
 
     async def update(self):
+        
+        try:
+            # vehicle_health_status
+            vehicle_status = await self._client.get_vehicle_status(self._vin)
+            self._parse_vehicle_status(vehicle_status)
+        except Exception:
+            pass
 
-        # vehicle_health_status
-        vehicle_status = await self._client.get_vehicle_status(self._vin)
-        self._parse_vehicle_status(vehicle_status)
+        try:
+            # telemetry
+            telemetry = await self._client.get_telemetry(self._vin)
+            self._parse_telemetry(telemetry)
+        except Exception:
+            pass
 
-        # telemetry
-        telemetry = await self._client.get_telemetry(self._vin)
-        self._parse_telemetry(telemetry)
+        try:
+            # engine_status
+            engine_status = await self._client.get_engine_status(self._vin)
+            self._parse_engine_status(engine_status)
+        except Exception:
+            pass
 
-        # engine_status
-        engine_status = await self._client.get_engine_status(self._vin)
-        self._parse_engine_status(engine_status)
-
-        # electric_status
-        electric_status = await self._client.get_electric_status(self.vin)
-        if electric_status is not None:
-            self._parse_electric_status(electric_status)
+        try:
+            # electric_status
+            electric_status = await self._client.get_electric_status(self.vin)
+            if electric_status is not None:
+                self._parse_electric_status(electric_status)
+        except Exception:
+            pass
 
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""

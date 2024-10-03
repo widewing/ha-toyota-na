@@ -45,6 +45,11 @@ async def async_get_config_entry_diagnostics(
     engine_status = []
     electric_status = []
 
+    user_vehicle_status = auto()
+    user_telemetry = auto()
+    user_engine_status = auto()
+    user_electric_status = auto()
+
     for (i, vehicle) in enumerate(user_vehicle_list):
         vin=vehicle["vin"]
 
@@ -52,11 +57,26 @@ async def async_get_config_entry_diagnostics(
             generation = "17CYPLUS"
         elif vehicle["generation"] == "17CY":
             generation = "17CY"
+        
+        try:
+            user_vehicle_status = await client.get_vehicle_status(vin, generation)
+        except Exception:
+            pass
 
-        user_vehicle_status = await client.get_vehicle_status(vin, generation)
-        user_telemetry = await client.get_telemetry(vin, generation)
-        user_engine_status = await client.get_engine_status(vin, generation)
-        user_electric_status = await client.get_electric_status(vin)
+        try:
+            user_telemetry = await client.get_telemetry(vin, generation)
+        except Exception:
+            pass
+
+        try:
+            user_engine_status = await client.get_engine_status(vin, generation)
+        except Exception:
+            pass
+            
+        try:
+            user_electric_status = await client.get_electric_status(vin)
+        except Exception:
+            pass
 
         vehicle_status.append(user_vehicle_status)
         telemetry.append(user_telemetry)

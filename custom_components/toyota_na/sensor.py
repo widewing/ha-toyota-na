@@ -87,10 +87,12 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         # We need to poll the unit of measure from the service itself to ensure we're passing
         # the correct unit of measure to the sensor.
         if self._unit_of_measurement == "MI_OR_KM":
-            _unit = cast(ToyotaNumeric, self.feature(self._vehicle_feature)).unit
-            if _unit == "mi":
-                return UnitOfLength.MILES
-            elif _unit == "km":
-                return UnitOfLength.KILOMETERS
+            feature = cast(ToyotaNumeric, self.feature(self._vehicle_feature))
+            if hasattr(feature,'unit'):
+                _unit = feature.unit
+                if _unit == "mi":
+                    return UnitOfLength.MILES
+                elif _unit == "km":
+                    return UnitOfLength.KILOMETERS
 
         return self._unit_of_measurement
