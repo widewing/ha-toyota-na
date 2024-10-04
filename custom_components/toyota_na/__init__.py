@@ -22,6 +22,11 @@ from toyota_na.vehicle.vehicle_generations.seventeen_cy_plus import SeventeenCYP
 from .patch_seventeen_cy_plus import SeventeenCYPlusToyotaVehicle
 toyota_na.vehicle.vehicle_generations.seventeen_cy_plus.SeventeenCYPlusToyotaVehicle = SeventeenCYPlusToyotaVehicle
 
+# Patch seventeen_cy
+from toyota_na.vehicle.vehicle_generations.seventeen_cy import SeventeenCYToyotaVehicle
+from .patch_seventeen_cy import SeventeenCYToyotaVehicle
+toyota_na.vehicle.vehicle_generations.seventeen_cy.SeventeenCYToyotaVehicle = SeventeenCYToyotaVehicle
+
 from toyota_na.exceptions import AuthError, LoginError
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand, ToyotaVehicle
 from toyota_na.vehicle.vehicle import get_vehicles
