@@ -132,6 +132,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             timer=engine_status.get("timer"),
         )
     
+    #
+    # electric_status
+    #
+    
     def _parse_electric_status(self, electric_status: dict) -> None:
         self._features[VehicleFeatures.ChargeDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistance"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
         self._features[VehicleFeatures.ChargeDistanceAC] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistanceAC"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
@@ -140,8 +144,6 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         self._features[VehicleFeatures.RemainingChargeTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["remainingChargeTime"], "")
         self._features[VehicleFeatures.EvTravelableDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evTravelableDistance"], "")
         self._features[VehicleFeatures.ChargeType] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeType"], "")
-        #self._features[VehicleFeatures.ChargeStartTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeStartTime"], "")
-        #self._features[VehicleFeatures.ChargeEndTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeEndTime"], "")
         self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"], "")
         self._features[VehicleFeatures.ChargingStatus] = ToyotaOpening(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"] != 5)
 

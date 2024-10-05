@@ -12,10 +12,14 @@ ToyotaOneClient.get_electric_status = get_electric_status
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
+from .patch_base_vehicle import ApiVehicleGeneration
+toyota_na.vehicle.base_vehicle.ApiVehicleGeneration = ApiVehicleGeneration
 from .patch_base_vehicle import VehicleFeatures
 toyota_na.vehicle.base_vehicle.VehicleFeatures = VehicleFeatures
 from .patch_base_vehicle import RemoteRequestCommand
 toyota_na.vehicle.base_vehicle.RemoteRequestCommand = RemoteRequestCommand
+from .patch_base_vehicle import ToyotaVehicle
+toyota_na.vehicle.base_vehicle.ToyotaVehicle = ToyotaVehicle
 
 # Patch seventeen_cy_plus
 from toyota_na.vehicle.vehicle_generations.seventeen_cy_plus import SeventeenCYPlusToyotaVehicle
@@ -29,7 +33,10 @@ toyota_na.vehicle.vehicle_generations.seventeen_cy.SeventeenCYToyotaVehicle = Se
 
 from toyota_na.exceptions import AuthError, LoginError
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand, ToyotaVehicle
-from toyota_na.vehicle.vehicle import get_vehicles
+
+#Patch get_vehicles
+from .patch_vehicle import get_vehicles
+#from toyota_na.vehicle.vehicle import get_vehicles
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -165,10 +172,10 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
         vehicles: list[ToyotaVehicle] = []
         for vehicle in raw_vehicles:
             if vehicle.subscribed is not True:
-                _LOGGER.warn(
-                    f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to be used with Home Assistant."
+                _LOGGER.warning(
+                    f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to fully work with Home Assistant."
                 )
-                continue
+                #continue
             vehicles.append(vehicle)
 
         return vehicles

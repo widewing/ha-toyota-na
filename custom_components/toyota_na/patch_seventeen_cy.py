@@ -25,6 +25,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         RemoteRequestCommand.EngineStop: "RES",
         RemoteRequestCommand.HazardsOn: "HZ",
         RemoteRequestCommand.HazardsOff: "HZ",
+        RemoteRequestCommand.Refresh: "refresh",
     }
 
     _command_value_map = {
@@ -64,6 +65,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         "tripB": VehicleFeatures.TripDetailsB,
         "vehicleLocation": VehicleFeatures.ParkingLocation,
         "nextService": VehicleFeatures.NextService,
+        "speed": VehicleFeatures.Speed,
     }
 
     def __init__(
@@ -114,8 +116,14 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
             _LOGGER.error(e)
             pass
 
-        # vehicle_charge_status
-        # etc.
+        try:
+            # electric_status
+            electric_status = await self._client.get_electric_status(self.vin)
+            if electric_status is not None:
+                self._parse_electric_status(electric_status)
+        except Exception as e:
+            _LOGGER.error(e)
+            pass
 
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""
@@ -141,6 +149,21 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
             on=engine_status["status"] == "1",
             timer=engine_status.get("timer"),
         )
+
+    #
+    # electric_status
+    #
+
+    def _parse_electric_status(self, electric_status: dict) -> None:
+        self._features[VehicleFeatures.ChargeDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistance"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
+        self._features[VehicleFeatures.ChargeDistanceAC] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistanceAC"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
+        self._features[VehicleFeatures.ChargeLevel] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeRemainingAmount"], "%")
+        self._features[VehicleFeatures.PlugStatus] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["plugStatus"], "")
+        self._features[VehicleFeatures.RemainingChargeTime] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["remainingChargeTime"], "")
+        self._features[VehicleFeatures.EvTravelableDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evTravelableDistance"], "")
+        self._features[VehicleFeatures.ChargeType] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeType"], "")
+        self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"], "")
+        self._features[VehicleFeatures.ChargingStatus] = ToyotaOpening(electric_status["vehicleInfo"]["chargeInfo"]["connectorStatus"] != 5)
 
     #
     # vehicle_health_status
@@ -190,14 +213,24 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
     def _parse_telemetry(self, telemetry: dict) -> None:
         for key, value in telemetry.items():
+            
+            # last time stamp is a primitive
+            if key == "lastTimestamp" and value is not None:
+                self._features[VehicleFeatures.LastTimeStamp] = ToyotaNumeric(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp(), "")
+                continue
+
+            # tire pressure time stamp is a primitive
+            if key == "tirePressureTimestamp" and value is not None:
+                self._features[VehicleFeatures.LastTirePressureTimeStamp] = ToyotaNumeric(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp(), "")
+                continue
 
             # fuel level is a primitive
-            if key == "fuelLevel":
+            if key == "fuelLevel" and value is not None:
                 self._features[VehicleFeatures.FuelLevel] = ToyotaNumeric(value, "%")
                 continue
 
             # vehicle_location has a different shape and different target entity class
-            if key == "vehicleLocation":
+            if key == "vehicleLocation" and value is not None:
                 self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
                     value["latitude"], value["longitude"]
                 )
