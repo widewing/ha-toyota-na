@@ -7,11 +7,13 @@ This is a Home Assistant integration for Toyota North America.
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Release Date](https://img.shields.io/github/release-date/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Releases](https://img.shields.io/github/downloads/widewing/ha-toyota-na/latest/total?color=purple&label=%20release%20Downloads&style=for-the-badge) 
 
 ## Current features
+Certain entities and services require the Remote Subscription.
+
 Sensors:
-* Door lock status
-* Window/Moonroof status
-* Trunk Status
-* Real time location
+* Door lock status (Remote Subscription Required)
+* Window/Moonroof status (Remote Subscription Required)
+* Trunk Status (Remote Subscription Required)
+* Real time location (Remote Subscription Required)
 * Last Parked Location
 * Tire Pressure
 * Fuel Level
@@ -31,9 +33,9 @@ Sensors:
 * EV Charging Status
 
 Services:
-* Lock/Unlock Doors
-* Remote Start/Stop Engine
-* Hazards On/Off
+* Lock/Unlock Doors (Remote Subscription Required)
+* Remote Start/Stop Engine (Remote Subscription Required)
+* Hazards On/Off (Remote Subscription Required)
 * Refresh Data
 ## Installation
 ### HACS
