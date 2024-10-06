@@ -33,6 +33,8 @@ async def async_setup_entry(
     ]["coordinator"]
 
     for vehicle in coordinator.data:
+        if vehicle.subscribed is False:
+            continue
         locks.append(
             ToyotaLock(
                 coordinator,

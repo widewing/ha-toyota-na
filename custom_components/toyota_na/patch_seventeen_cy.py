@@ -18,6 +18,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
+    _has_remote_subscription = False
+    _has_electric = False
+
     _command_map = {
         RemoteRequestCommand.DoorLock: "DL",
         RemoteRequestCommand.DoorUnlock: "DL",
@@ -72,14 +75,19 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         self,
         client: ToyotaOneClient,
         has_remote_subscription: bool,
+        has_electric: bool,
         model_name: str,
         model_year: str,
         vin: str,
     ):
+        self._has_remote_subscription = has_remote_subscription
+        self._has_electric = has_electric
+
         ToyotaVehicle.__init__(
             self,
             client,
             has_remote_subscription,
+            has_electric,
             model_name,
             model_year,
             vin,
@@ -89,11 +97,12 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
     async def update(self):
         
         try:
-            # vehicle_health_status
-            vehicle_status = await self._client.get_vehicle_status(
-                self._vin, self._generation.value
-            )
-            self._parse_vehicle_status(vehicle_status)
+            if self._has_remote_subscription:
+                # vehicle_health_status
+                vehicle_status = await self._client.get_vehicle_status(
+                    self._vin, self._generation.value
+                )
+                self._parse_vehicle_status(vehicle_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -117,10 +126,11 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
             pass
 
         try:
-            # electric_status
-            electric_status = await self._client.get_electric_status(self.vin)
-            if electric_status is not None:
-                self._parse_electric_status(electric_status)
+            if self._has_electric:
+                # electric_status
+                electric_status = await self._client.get_electric_status(self.vin)
+                if electric_status is not None:
+                    self._parse_electric_status(electric_status)
         except Exception as e:
             _LOGGER.error(e)
             pass

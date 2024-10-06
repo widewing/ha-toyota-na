@@ -34,6 +34,10 @@ async def async_setup_entry(
 
             entity_config = feature_sensor
             if entity_config and isinstance(feature, ToyotaNumeric):
+                if vehicle.electric is False and cast(bool, entity_config["electric"]):
+                    continue
+                if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):
+                    continue
                 sensors.append(
                     ToyotaNumericSensor(
                         cast(VehicleFeatures, feature_sensor["feature"]),

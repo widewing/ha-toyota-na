@@ -97,6 +97,7 @@ class ToyotaVehicle(ABC):
         ],
     ]
     _has_remote_subscription = False
+    _has_electric = False
     _model_name: str
     _model_year: str
     _generation: ApiVehicleGeneration
@@ -106,6 +107,7 @@ class ToyotaVehicle(ABC):
         self,
         client: ToyotaOneClient,
         has_remote_subscription,
+        has_electric,
         model_name: str,
         model_year: str,
         vin: str,
@@ -121,6 +123,7 @@ class ToyotaVehicle(ABC):
         self._client = client
         self._generation = generation
         self._has_remote_subscription = has_remote_subscription
+        self._has_electric = has_electric
         self._model_name = model_name
         self._model_year = model_year
         self._vin = vin
@@ -172,6 +175,10 @@ class ToyotaVehicle(ABC):
     @property
     def subscribed(self):
         return self._has_remote_subscription
+    
+    @property
+    def electric(self):
+        return self._has_electric
 
     @property
     def vin(self):

@@ -99,14 +99,14 @@ async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
 
                 vin = identifier[1]
                 for vehicle in coordinator.data:
-                    if vehicle.vin == vin and remote_action.upper() == "REFRESH":
+                    if vehicle.vin == vin and remote_action.upper() == "REFRESH" and vehicle.subscribed:
                         await vehicle.poll_vehicle_refresh()
                         # TODO: This works great and prevents us from unnecessarily hitting Toyota. But we can and should
                         # probably do stuff like this in the library where we can better control which APIs we hit to refresh our in-memory data.
                         coordinator.async_set_updated_data(coordinator.data)
                         await asyncio.sleep(10)
                         await coordinator.async_request_refresh()
-                    elif vehicle.vin == vin:
+                    elif vehicle.vin == vin and vehicle.subscribed:
                         await vehicle.send_command(COMMAND_MAP[remote_action])
                         break
 

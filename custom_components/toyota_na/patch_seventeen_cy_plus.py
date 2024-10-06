@@ -18,6 +18,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
+    _has_remote_subscription = False
+    _has_electric = False
+
     _command_map = {
         RemoteRequestCommand.DoorLock: "door-lock",
         RemoteRequestCommand.DoorUnlock: "door-unlock",
@@ -63,14 +66,19 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         self,
         client: ToyotaOneClient,
         has_remote_subscription: bool,
+        has_electric: bool,
         model_name: str,
         model_year: str,
         vin: str,
     ):
+        self._has_remote_subscription = has_remote_subscription
+        self._has_electric = has_electric
+
         ToyotaVehicle.__init__(
             self,
             client,
             has_remote_subscription,
+            has_electric,
             model_name,
             model_year,
             vin,
@@ -80,9 +88,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     async def update(self):
 
         try:
-            # vehicle_health_status
-            vehicle_status = await self._client.get_vehicle_status(self._vin)
-            self._parse_vehicle_status(vehicle_status)
+            if self._has_remote_subscription:
+                # vehicle_health_status
+                vehicle_status = await self._client.get_vehicle_status(self._vin)
+                self._parse_vehicle_status(vehicle_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -104,10 +113,11 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             pass
 
         try:
-            # electric_status
-            electric_status = await self._client.get_electric_status(self.vin)
-            if electric_status is not None:
-                self._parse_electric_status(electric_status)
+            if self._has_electric:
+                # electric_status
+                electric_status = await self._client.get_electric_status(self.vin)
+                if electric_status is not None:
+                    self._parse_electric_status(electric_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -135,7 +145,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     #
     # electric_status
     #
-    
+
     def _parse_electric_status(self, electric_status: dict) -> None:
         self._features[VehicleFeatures.ChargeDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistance"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
         self._features[VehicleFeatures.ChargeDistanceAC] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistanceAC"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
@@ -161,7 +171,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         # Real-time location is a one-off, so we'll just parse it out here
         if "latitude" in vehicle_status and "longitude" in vehicle_status:
-            self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
+            self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
                 vehicle_status["latitude"], vehicle_status["longitude"]
             )
 
@@ -208,12 +218,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 
             # fuel level is a primitive
             if key == "fuelLevel" and value is not None:
-                self._features[VehicleFeatures.FuelLevel] = ToyotaNumeric(value, "")
+                self._features[VehicleFeatures.FuelLevel] = ToyotaNumeric(value, "%")
                 continue
 
             # vehicle_location has a different shape and different target entity class
             if key == "vehicleLocation" and value is not None:
-                self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
+                self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
                     value["latitude"], value["longitude"]
                 )
                 continue
