@@ -175,7 +175,6 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
                 _LOGGER.warning(
                     f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to fully work with Home Assistant."
                 )
-                #continue
             vehicles.append(vehicle)
 
         return vehicles
