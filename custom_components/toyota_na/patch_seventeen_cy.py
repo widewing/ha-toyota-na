@@ -189,7 +189,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
         # Real-time location is a one-off, so we'll just parse it out here
         if "latitude" in vehicle_status and "longitude" in vehicle_status:
-            self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
+            self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
                 vehicle_status["latitude"], vehicle_status["longitude"]
             )
 
@@ -241,7 +241,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
             # vehicle_location has a different shape and different target entity class
             if key == "vehicleLocation" and value is not None:
-                self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
+                self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
                     value["latitude"], value["longitude"]
                 )
                 continue

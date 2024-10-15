@@ -43,7 +43,7 @@ async def async_setup_entry(
 
             entity_config = feature_sensor
             if entity_config and isinstance(feature, ToyotaLocation):
-                if vehicle.subscribed is False and entity_config["name"] == "Current Location":
+                if vehicle.subscribed is False and entity_config["name"] == "Last Parked Location":
                     continue
                 locations.append(
                     ToyotaDeviceTracker(
