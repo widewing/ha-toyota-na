@@ -12,18 +12,19 @@ async def get_electric_status(self, vin):
     if "vehicleInfo" in electric_status:
         return electric_status
 
-async def api_request(self, method, endpoint, header_params=No
+async def api_request(self, method, endpoint, header_params=None, **kwargs):
     headers = await self._auth_headers()
     if header_params:
         headers.update(header_params)
+
     async with aiohttp.ClientSession() as session:
         async with session.request(
-                method, urljoin(API_GATEWAY, endpoint), header
+                method, urljoin(API_GATEWAY, endpoint), headers=headers, **kwargs
         ) as resp:
             resp.raise_for_status()
             try:
                 resp_json = await resp.json()
                 return resp_json["payload"]
             except:
-                logging.error("Error parsing response: %s", aw
+                logging.error("Error parsing response: %s", await resp.text())
                 raise
