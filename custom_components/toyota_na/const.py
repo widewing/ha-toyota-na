@@ -17,6 +17,9 @@ HAZARDS_ON = "hazards_on"
 HAZARDS_OFF = "hazards_off"
 REFRESH = "refresh"
 
+UPDATE_INTERVAL = 30
+REFRESH_STATUS_INTERVAL = 3600
+
 COMMAND_MAP = {
     DOOR_LOCK: RemoteRequestCommand.DoorLock,
     DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,

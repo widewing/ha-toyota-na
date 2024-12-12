@@ -106,7 +106,7 @@ class ToyotaLock(ToyotaNABaseEntity, LockEntity):
 
             # TODO: This works great and prevents us from unnecessarily hitting Toyota. But we can and should
             # probably do stuff like this in the library where we can better control which APIs we hit to refresh our in-memory data.
-            self.coordinator.async_set_updated_data(self.coordinator.data)
+            await self.vehicle.poll_vehicle_refresh()
             await asyncio.sleep(10)
             self._state_changing = False
             await self.coordinator.async_request_refresh()

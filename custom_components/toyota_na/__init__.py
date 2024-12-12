@@ -1,5 +1,5 @@
 from ctypes import cast
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 import asyncio
 
@@ -55,6 +55,8 @@ from .const import (
     DOOR_LOCK,
     DOOR_UNLOCK,
     REFRESH,
+    UPDATE_INTERVAL,
+    REFRESH_STATUS_INTERVAL
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -145,8 +147,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass,
         _LOGGER,
         name=DOMAIN,
-        update_method=lambda: update_vehicles_status(client, entry),
-        update_interval=timedelta(minutes=2),
+        update_method=lambda: update_vehicles_status(hass, client, entry),
+        update_interval=timedelta(seconds=UPDATE_INTERVAL),
     )
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = {
@@ -166,7 +168,11 @@ def update_tokens(tokens: dict[str, str], hass: HomeAssistant, entry: ConfigEntr
     hass.config_entries.async_update_entry(entry, data=data)
 
 
-async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
+async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, entry: ConfigEntry):
+    need_refresh = False
+    need_refresh_before = datetime.utcnow().timestamp() - REFRESH_STATUS_INTERVAL
+    if "last_refreshed_at" not in entry.data or entry.data["last_refreshed_at"] < need_refresh_before:
+        need_refresh = True
     try:
         _LOGGER.debug("Updating vehicle status")
         raw_vehicles = await get_vehicles(client)
@@ -176,8 +182,13 @@ async def update_vehicles_status(client: ToyotaOneClient, entry: ConfigEntry):
                 _LOGGER.warning(
                     f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to fully work with Home Assistant."
                 )
+                continue
+            if need_refresh:
+                await vehicle.poll_vehicle_refresh()
             vehicles.append(vehicle)
-
+        entry_data = dict(entry.data)
+        entry_data["last_refreshed_at"] = datetime.utcnow().timestamp()
+        hass.config_entries.async_update_entry(entry, data=entry_data)
         return vehicles
     except AuthError as e:
         try:
