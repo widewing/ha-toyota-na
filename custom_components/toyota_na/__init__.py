@@ -182,7 +182,6 @@ async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, e
                 _LOGGER.warning(
                     f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to fully work with Home Assistant."
                 )
-                continue
             if need_refresh:
                 await vehicle.poll_vehicle_refresh()
             vehicles.append(vehicle)
