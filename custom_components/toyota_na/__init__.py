@@ -77,21 +77,22 @@ async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
 
         # There is currently not a case with this integration where
         # the device will have more or less than one config entry
-        if len(device.config_entries) != 1:
+        if len(device.config_entries) == 0:
             _LOGGER.warning("Device missing config entry")
             return
 
-        entry_id = list(device.config_entries)[0]
+        for entry_id in device.config_entries:
+            if entry_id not in hass.data[DOMAIN]:
+                _LOGGER.warning("Config entry not found")
+                continue
 
-        if entry_id not in hass.data[DOMAIN]:
-            _LOGGER.warning("Config entry not found")
-            return
+            if "coordinator" not in hass.data[DOMAIN][entry_id]:
+                _LOGGER.warning("Coordinator not found")
+                continue
 
-        if "coordinator" not in hass.data[DOMAIN][entry_id]:
-            _LOGGER.warning("Coordinator not found")
-            return
-
-        coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+            coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+            if coordinator.data is None:
+                _LOGGER.warning("No coordinator data")
 
         if coordinator.data is None:
             _LOGGER.warning("No coordinator data")
