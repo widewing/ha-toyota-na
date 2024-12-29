@@ -152,6 +152,14 @@ BINARY_SENSORS = [
         "electric": False,
     },
     {
+        "device_class": BinarySensorDeviceClass.LOCK,
+        "feature": VehicleFeatures.Trunk,
+        "icon": "mdi:car-door-lock",
+        "name": "Trunk Door Lock",
+        "subscription": True,
+        "electric": False,
+    },
+    {
         "device_class": BinarySensorDeviceClass.RUNNING,
         "feature": VehicleFeatures.RemoteStartStatus,
         "icon": "mdi:car-hatchback",
