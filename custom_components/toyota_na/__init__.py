@@ -8,10 +8,8 @@ from toyota_na.client import ToyotaOneClient
 
 # Patch client code
 from .patch_client import get_electric_realtime_status, get_electric_status, api_request
-
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
-ToyotaOneClient._auth_headers = _auth_headers
 ToyotaOneClient.api_request = api_request
 
 # Patch base_vehicle
@@ -80,23 +78,21 @@ async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
 
         # There is currently not a case with this integration where
         # the device will have more or less than one config entry
-        if len(device.config_entries) == 0:
+        if len(device.config_entries) != 1:
             _LOGGER.warning("Device missing config entry")
             return
 
-        for entry_id in device.config_entries:
-            if entry_id not in hass.data[DOMAIN]:
-                _LOGGER.warning("Config entry not found")
-                continue
+        entry_id = list(device.config_entries)[0]
 
-            if "coordinator" not in hass.data[DOMAIN][entry_id]:
-                _LOGGER.warning("Coordinator not found")
-                continue
+        if entry_id not in hass.data[DOMAIN]:
+            _LOGGER.warning("Config entry not found")
+            return
 
-            coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
-            if coordinator.data is None:
-                _LOGGER.warning("No coordinator data")
-                continue
+        if "coordinator" not in hass.data[DOMAIN][entry_id]:
+            _LOGGER.warning("Coordinator not found")
+            return
+
+        coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
 
         if coordinator.data is None:
             _LOGGER.warning("No coordinator data")
