@@ -126,6 +126,17 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""
         await self._client.send_refresh_status(self._vin)
 
+        """Tell Toyota to refresh electric status if applicable"""
+        try:
+            if self._has_electric:
+                # electric_status
+                electric_status = await self._client.get_electric_realtime_status(self.vin)
+                if electric_status is not None:
+                    self._parse_electric_status(electric_status)
+        except Exception as e:
+            _LOGGER.error(e)
+            pass
+
     async def send_command(self, command: RemoteRequestCommand) -> None:
         """Start the engine. Periodically refreshes the vehicle status to determine if the engine is running."""
         await self._client.remote_request(self._vin, self._command_map[command])
