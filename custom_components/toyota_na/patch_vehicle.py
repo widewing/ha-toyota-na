@@ -39,7 +39,9 @@ async def get_vehicles(client: ToyotaOneClient) -> list[ToyotaVehicle]:
                 region=vehicle["region"],
             )
 
-        await vehicle.update()
-        vehicles.append(vehicle)
+        vehicle_update = vehicle.update()
+        if vehicle_update:
+            await vehicle_update
+            vehicles.append(vehicle)
 
     return vehicles
