@@ -51,6 +51,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         "Passenger Side Rear Door": VehicleFeatures.RearPassengerDoor,
         "Passenger Side Rear Window": VehicleFeatures.RearPassengerWindow,
         "Other Hatch": VehicleFeatures.Trunk,
+        "Other Trunk": VehicleFeatures.Trunk,
         "Other Moonroof": VehicleFeatures.Moonroof,
         "Other Hood": VehicleFeatures.Hood,
     }
