@@ -1,13 +1,33 @@
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 
 import aiohttp
 
 API_GATEWAY = "https://oneapi-east.telematicsct.com/"
 
-async def get_electric_status(self, vin):
+async def get_electric_realtime_status(self, vin, generation="17CYPLUS"):
+    realtime_electric_status = await self.api_post(
+        "v2/electric/realtime-status",
+        {},
+        {
+            "device-id": self.auth.get_device_id(),
+            "vin": vin,
+        },
+    )
+    if generation == "17CYPLUS":
+        return await self.get_electric_status(vin, realtime_electric_status["appRequestNo"])
+    elif realtime_electric_status["returnCode"] == "ONE-RES-10000":
+        return await self.get_electric_status(vin)
+
+
+async def get_electric_status(self, vin, realtime_status=None):
+    url = "v2/electric/status"
+    if realtime_status:
+        query_params = {"realtime-status": realtime_status}
+        url += "?" + urlencode(query_params)
+
     electric_status = await self.api_get(
-        "v2/electric/status", {"VIN": vin}
+        url, {"VIN": vin}
     )
     if "vehicleInfo" in electric_status:
         return electric_status

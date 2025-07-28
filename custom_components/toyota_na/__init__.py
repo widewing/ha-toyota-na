@@ -7,7 +7,8 @@ from toyota_na.auth import ToyotaOneAuth
 from toyota_na.client import ToyotaOneClient
 
 # Patch client code
-from .patch_client import get_electric_status, api_request
+from .patch_client import get_electric_realtime_status, get_electric_status, api_request
+ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
 ToyotaOneClient.api_request = api_request
 
