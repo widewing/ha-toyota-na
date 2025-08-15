@@ -3,7 +3,15 @@ from urllib.parse import urljoin, urlencode
 
 import aiohttp
 
-API_GATEWAY = "https://oneapi-east.telematicsct.com/"
+API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
+
+async def _auth_headers(self):
+    return {
+        "AUTHORIZATION": "Bearer " + await self.auth.get_access_token(),
+        "X-API-KEY": self.API_KEY,
+        "X-GUID": await self.auth.get_guid(),
+        "X-CHANNEL": "ONEAPP"
+    }
 
 async def get_electric_realtime_status(self, vin, generation="17CYPLUS"):
     realtime_electric_status = await self.api_post(
@@ -36,6 +44,9 @@ async def api_request(self, method, endpoint, header_params=None, **kwargs):
     headers = await self._auth_headers()
     if header_params:
         headers.update(header_params)
+
+    if endpoint.startswith("/"):
+        endpoint = endpoint[1:]
 
     async with aiohttp.ClientSession() as session:
         async with session.request(
