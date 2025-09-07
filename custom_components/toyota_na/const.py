@@ -17,8 +17,8 @@ HAZARDS_ON = "hazards_on"
 HAZARDS_OFF = "hazards_off"
 REFRESH = "refresh"
 
-UPDATE_INTERVAL = 30
-REFRESH_STATUS_INTERVAL = 3600
+UPDATE_INTERVAL = 600
+REFRESH_STATUS_INTERVAL = 2 * 3600
 
 COMMAND_MAP = {
     DOOR_LOCK: RemoteRequestCommand.DoorLock,
@@ -84,7 +84,7 @@ BINARY_SENSORS = [
         "feature": VehicleFeatures.Moonroof,
         "icon": "mdi:window-closed-variant",
         "name": "Moonroof",
-        "subscription": True,
+        "subscription": False,
         "electric": False,
     },
     {
@@ -92,7 +92,7 @@ BINARY_SENSORS = [
         "feature": VehicleFeatures.FrontDriverWindow,
         "icon": "mdi:window-closed-variant",
         "name": "Front Driver Window",
-        "subscription": True,
+        "subscription": False,
         "electric": False,
     },
     {
@@ -100,7 +100,7 @@ BINARY_SENSORS = [
         "feature": VehicleFeatures.FrontPassengerWindow,
         "icon": "mdi:window-closed-variant",
         "name": "Front Passenger Window",
-        "subscription": True,
+        "subscription": False,
         "electric": False,
     },
     {
@@ -108,7 +108,7 @@ BINARY_SENSORS = [
         "feature": VehicleFeatures.RearDriverWindow,
         "icon": "mdi:window-closed-variant",
         "name": "Rear Driver Window",
-        "subscription": True,
+        "subscription": False,
         "electric": False,
     },
     {
@@ -116,7 +116,7 @@ BINARY_SENSORS = [
         "feature": VehicleFeatures.RearPassengerWindow,
         "icon": "mdi:window-closed-variant",
         "name": "Rear Passenger Window",
-        "subscription": True,
+        "subscription": False,
         "electric": False,
     },
     {

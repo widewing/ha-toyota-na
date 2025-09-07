@@ -60,6 +60,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "vehicleLocation": VehicleFeatures.ParkingLocation,
         "nextService": VehicleFeatures.NextService,
         "speed": VehicleFeatures.Speed,
+
+        "driverWindow": VehicleFeatures.FrontDriverWindow,
+        "passengerWindow": VehicleFeatures.FrontPassengerWindow,
+        "rlWindow": VehicleFeatures.RearDriverWindow,
+        "rrWindow": VehicleFeatures.RearPassengerWindow,
+        "sunRoof": VehicleFeatures.Moonroof,
     }
 
     def __init__(
@@ -105,9 +111,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             pass
 
         try:
-            # engine_status
-            engine_status = await self._client.get_engine_status(self._vin)
-            self._parse_engine_status(engine_status)
+            if self._has_remote_subscription:
+                # engine_status
+                engine_status = await self._client.get_engine_status(self._vin)
+                self._parse_engine_status(engine_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -226,6 +233,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
                     value["latitude"], value["longitude"]
                 )
+                continue
+
+            if "Window" in key or "Roof" in key:
+                self._features[
+                    self._vehicle_telemetry_map[key]
+                ] = ToyotaOpening(closed=(value == 2))
                 continue
 
             if self._vehicle_telemetry_map.get(key) is not None and value is not None:
