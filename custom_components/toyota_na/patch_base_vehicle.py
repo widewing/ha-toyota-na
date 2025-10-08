@@ -102,6 +102,7 @@ class ToyotaVehicle(ABC):
     _model_year: str
     _generation: ApiVehicleGeneration
     _vin: str
+    _region: str
 
     def __init__(
         self,
@@ -111,6 +112,7 @@ class ToyotaVehicle(ABC):
         model_name: str,
         model_year: str,
         vin: str,
+        region: str,
         generation: ApiVehicleGeneration,
     ):
         """
@@ -127,6 +129,7 @@ class ToyotaVehicle(ABC):
         self._model_name = model_name
         self._model_year = model_year
         self._vin = vin
+        self._region = region
 
     @abstractmethod
     async def poll_vehicle_refresh(self) -> None:
