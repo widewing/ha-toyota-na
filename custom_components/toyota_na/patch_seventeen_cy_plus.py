@@ -70,6 +70,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         model_name: str,
         model_year: str,
         vin: str,
+        region: str,
     ):
         self._has_remote_subscription = has_remote_subscription
         self._has_electric = has_electric
@@ -82,6 +83,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             model_name,
             model_year,
             vin,
+            region,
             ApiVehicleGeneration.CY17PLUS,
         )
 
@@ -98,7 +100,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             # telemetry
-            telemetry = await self._client.get_telemetry(self._vin)
+            telemetry = await self._client.get_telemetry(self._vin, self._region)
             self._parse_telemetry(telemetry)
         except Exception as e:
             _LOGGER.error(e)

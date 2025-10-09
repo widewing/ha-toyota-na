@@ -5,6 +5,11 @@ import aiohttp
 
 API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
 
+async def get_telemetry(self, vin, region, generation="17CYPLUS"):
+    return await self.api_get(
+        "/v2/telemetry", {"VIN": vin, "GENERATION": generation, "X-BRAND": "T", "x-region": region}
+    )
+
 async def _auth_headers(self):
     return {
         "AUTHORIZATION": "Bearer " + await self.auth.get_access_token(),
