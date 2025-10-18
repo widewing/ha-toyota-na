@@ -7,7 +7,8 @@
     "codeowners": ["@vanstinator, @widewing"],
     "requirements": ["toyota-na==2.1.1"],
     "issue_tracker": "https://github.com/widewing/ha-toyota-na/issues",
-    "version": "2.6.2",
+    "version": "2.6.3",
     "iot_class": "cloud_polling"
 }
+
 
