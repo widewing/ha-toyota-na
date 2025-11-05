@@ -63,7 +63,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor"]
+PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
     @service.verify_domain_control(hass, DOMAIN)
