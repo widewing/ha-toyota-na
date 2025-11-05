@@ -4,6 +4,6 @@
   "homeassistant": "2021.12.0",
   "iot_class": ["Cloud Polling"],
   "render_readme": true,
-  "zip_release": true,
+  "zip_release": false,
   "filename": "ha_toyota_na.zip"
 }
