@@ -151,6 +151,21 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 _LOGGER.debug(f"No electric status available (expected for non-EV): {e}")
             pass
 
+        # Try alternate endpoints for tire pressure and other data
+        try:
+            vehicle_health = await self._client.get_vehicle_health(self.vin)
+            if vehicle_health:
+                _LOGGER.info(f"Vehicle health data retrieved: {vehicle_health}")
+        except Exception as e:
+            _LOGGER.debug(f"Vehicle health endpoint error: {e}")
+
+        try:
+            status_details = await self._client.get_vehicle_status_details(self.vin)
+            if status_details:
+                _LOGGER.info(f"Vehicle status details retrieved: {status_details}")
+        except Exception as e:
+            _LOGGER.debug(f"Vehicle status details endpoint error: {e}")
+
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""
         await self._client.send_refresh_status(self._vin, self._generation.value)
