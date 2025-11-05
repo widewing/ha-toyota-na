@@ -130,14 +130,18 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
         # Try to get electric status for both EVs and hybrids
         # Some hybrids may be marked as non-EV but still have electric data
+        _LOGGER.info(f"Attempting to fetch electric status for {self._model_name} (marked as EV: {self._has_electric})")
         try:
             # electric_status
             electric_status = await self._client.get_electric_status(self.vin)
+            _LOGGER.debug(f"Electric status response: {electric_status}")
             if electric_status is not None:
                 self._parse_electric_status(electric_status)
                 # If we successfully got electric data, ensure we know this vehicle has electric capability
                 if not self._has_electric:
                     _LOGGER.info(f"Vehicle {self._model_name} was marked as non-EV but has electric data (likely a hybrid)")
+            else:
+                _LOGGER.info(f"Electric status returned None for {self._model_name}")
         except Exception as e:
             if self._has_electric:
                 # Only log error if we expected electric data
@@ -146,6 +150,21 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 # Just debug log for non-EV vehicles
                 _LOGGER.debug(f"No electric status available (expected for non-EV): {e}")
             pass
+
+        # Try alternate endpoints for tire pressure and other data
+        try:
+            vehicle_health = await self._client.get_vehicle_health(self.vin)
+            if vehicle_health:
+                _LOGGER.info(f"Vehicle health data retrieved: {vehicle_health}")
+        except Exception as e:
+            _LOGGER.debug(f"Vehicle health endpoint error: {e}")
+
+        try:
+            status_details = await self._client.get_vehicle_status_details(self.vin)
+            if status_details:
+                _LOGGER.info(f"Vehicle status details retrieved: {status_details}")
+        except Exception as e:
+            _LOGGER.debug(f"Vehicle status details endpoint error: {e}")
 
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""

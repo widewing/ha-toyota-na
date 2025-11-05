@@ -35,24 +35,27 @@ async def async_setup_entry(
         config_entry.entry_id
     ]["coordinator"]
 
-    for vehicle in coordinator.data:
+    for index, vehicle in enumerate(coordinator.data):
+        _LOGGER.debug(f"Setting up device trackers for vehicle {vehicle.vin}, features: {list(vehicle.features.keys())}")
+
         for feature_sensor in features_sensors:
             feature = vehicle.features.get(
                 cast(VehicleFeatures, feature_sensor["feature"])
             )
 
-            entity_config = feature_sensor
-            if entity_config and isinstance(feature, ToyotaLocation):
-                if vehicle.subscribed is False and entity_config["name"] == "Last Parked Location":
-                    continue
+            if feature is not None and isinstance(feature, ToyotaLocation):
+                _LOGGER.info(f"Adding device tracker: {feature_sensor['name']} for {vehicle.vin}")
                 locations.append(
                     ToyotaDeviceTracker(
                         cast(VehicleFeatures, feature_sensor["feature"]),
                         coordinator,
-                        entity_config["name"],
-                        vehicle.vin,
+                        feature_sensor["name"],
+                        vehicle,
+                        index,
                     )
                 )
+            else:
+                _LOGGER.debug(f"Skipping {feature_sensor['name']} - feature not available or wrong type")
 
     async_add_devices(locations, True)
 
@@ -61,9 +64,11 @@ class ToyotaDeviceTracker(ToyotaNABaseEntity, TrackerEntity):
     _icon = "mdi:map-marker"
     _vehicle_feature: VehicleFeatures
 
-    def __init__(self, feature: VehicleFeatures, *args: Any):
-        super().__init__(*args)
+    def __init__(self, feature: VehicleFeatures, coordinator, name, vehicle: ToyotaVehicle, index: int):
+        super().__init__(coordinator, vehicle, index)
         self._feature = feature
+        self._attr_name = f"{vehicle.model_name} {name}"
+        self._attr_unique_id = f"{vehicle.vin}_{feature.name.lower()}"
 
     @property
     def icon(self) -> str:
