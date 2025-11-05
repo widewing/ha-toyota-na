@@ -85,6 +85,11 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         self._has_remote_subscription = has_remote_subscription
         self._has_electric = has_electric
 
+        # Initialize custom attributes for additional data
+        self.caution_count = None
+        self.metadata = {}
+        self.subscriptions = []
+
         ToyotaVehicle.__init__(
             self,
             client,
@@ -246,6 +251,10 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         _LOGGER.debug("=== FULL VEHICLE_STATUS API RESPONSE ===")
         _LOGGER.debug(vehicle_status)
         _LOGGER.debug("=== END VEHICLE_STATUS ===")
+
+        # Store caution count as a custom attribute
+        if "cautionOverallCount" in vehicle_status:
+            self.caution_count = vehicle_status["cautionOverallCount"]
 
         # Real-time location is a one-off, so we'll just parse it out here
         if "latitude" in vehicle_status and "longitude" in vehicle_status:

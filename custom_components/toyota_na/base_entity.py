@@ -40,16 +40,30 @@ class ToyotaNABaseEntity(CoordinatorEntity[list[ToyotaVehicle]]):
     @property
     def device_info(self) -> DeviceInfo:
         model = None
+        device_info_dict = {
+            "identifiers": {(DOMAIN, self.vin)},
+            "manufacturer": "Toyota Motor North America",
+        }
 
         if self.vehicle is not None:
             model = f"{self.vehicle.model_year} {self.vehicle.model_name}"
+            device_info_dict["name"] = model
+            device_info_dict["model"] = model
 
-        return {
-            "identifiers": {(DOMAIN, self.vin)},
-            "name": model,
-            "model": model,
-            "manufacturer": "Toyota Motor North America",
-        }
+            # Add metadata if available
+            if hasattr(self.vehicle, 'metadata') and self.vehicle.metadata:
+                if self.vehicle.metadata.get('color'):
+                    device_info_dict["configuration_url"] = "https://drivers.lexus.com/"
+                    # Store metadata as sw_version for display
+                    metadata_items = []
+                    if self.vehicle.metadata.get('color'):
+                        metadata_items.append(f"Color: {self.vehicle.metadata['color']}")
+                    if self.vehicle.metadata.get('manufactured_date'):
+                        metadata_items.append(f"Manufactured: {self.vehicle.metadata['manufactured_date']}")
+                    if metadata_items:
+                        device_info_dict["sw_version"] = " | ".join(metadata_items)
+
+        return device_info_dict
 
     @property
     def vehicle(self) -> Union[ToyotaVehicle, None]:

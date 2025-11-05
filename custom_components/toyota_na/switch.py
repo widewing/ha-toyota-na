@@ -1,4 +1,5 @@
 """Toyota switch entities."""
+import asyncio
 import logging
 from typing import Any
 
@@ -49,39 +50,60 @@ class ToyotaRemoteStartSwitch(ToyotaNABaseEntity, SwitchEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return (
+        available = (
             self.coordinator.last_update_success
             and self.vehicle is not None
             and VehicleFeatures.RemoteStartStatus in self.vehicle.features
             and self.vehicle.subscribed
         )
+        if not available:
+            _LOGGER.debug(
+                f"Remote start switch unavailable: "
+                f"coordinator_success={self.coordinator.last_update_success}, "
+                f"vehicle_exists={self.vehicle is not None}, "
+                f"has_remote_status={VehicleFeatures.RemoteStartStatus in self.vehicle.features if self.vehicle else False}, "
+                f"subscribed={self.vehicle.subscribed if self.vehicle else False}"
+            )
+        return available
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the remote start."""
+        _LOGGER.warning(f"=== REMOTE START TURN_ON CALLED ===")
         if not self.vehicle:
             _LOGGER.error("Vehicle not found")
             return
         try:
             _LOGGER.info(f"Remote starting {self.vehicle.model_name} (VIN: {self.vehicle.vin})")
             await self.vehicle.send_command(RemoteRequestCommand.EngineStart)
-            # Wait a moment for the command to process
+            _LOGGER.info("Remote start command sent successfully")
+
+            # Poll vehicle to refresh status (same pattern as lock entity)
+            await self.vehicle.poll_vehicle_refresh()
+            await asyncio.sleep(10)
             await self.coordinator.async_request_refresh()
+            _LOGGER.info("Coordinator refresh requested after delay")
         except Exception as e:
-            _LOGGER.error(f"Failed to remote start vehicle: {e}")
+            _LOGGER.error(f"Failed to remote start vehicle: {e}", exc_info=True)
             raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the remote start."""
+        _LOGGER.warning(f"=== REMOTE START TURN_OFF CALLED ===")
         if not self.vehicle:
             _LOGGER.error("Vehicle not found")
             return
         try:
             _LOGGER.info(f"Remote stopping {self.vehicle.model_name} (VIN: {self.vehicle.vin})")
             await self.vehicle.send_command(RemoteRequestCommand.EngineStop)
-            # Wait a moment for the command to process
+            _LOGGER.info("Remote stop command sent successfully")
+
+            # Poll vehicle to refresh status (same pattern as lock entity)
+            await self.vehicle.poll_vehicle_refresh()
+            await asyncio.sleep(10)
             await self.coordinator.async_request_refresh()
+            _LOGGER.info("Coordinator refresh requested after delay")
         except Exception as e:
-            _LOGGER.error(f"Failed to remote stop vehicle: {e}")
+            _LOGGER.error(f"Failed to remote stop vehicle: {e}", exc_info=True)
             raise
 
     @property
