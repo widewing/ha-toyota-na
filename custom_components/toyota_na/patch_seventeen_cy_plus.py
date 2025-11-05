@@ -115,14 +115,23 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             _LOGGER.error(e)
             pass
 
+        # Try to get electric status for both EVs and hybrids
+        # Some hybrids may be marked as non-EV but still have electric data
         try:
-            if self._has_electric:
-                # electric_status
-                electric_status = await self._client.get_electric_status(self.vin)
-                if electric_status is not None:
-                    self._parse_electric_status(electric_status)
+            # electric_status
+            electric_status = await self._client.get_electric_status(self.vin)
+            if electric_status is not None:
+                self._parse_electric_status(electric_status)
+                # If we successfully got electric data, ensure we know this vehicle has electric capability
+                if not self._has_electric:
+                    _LOGGER.info(f"Vehicle {self._model_name} was marked as non-EV but has electric data (likely a hybrid)")
         except Exception as e:
-            _LOGGER.error(e)
+            if self._has_electric:
+                # Only log error if we expected electric data
+                _LOGGER.error(f"Failed to get electric status: {e}")
+            else:
+                # Just debug log for non-EV vehicles
+                _LOGGER.debug(f"No electric status available (expected for non-EV): {e}")
             pass
 
     async def poll_vehicle_refresh(self) -> None:
@@ -149,6 +158,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     #
 
     def _parse_engine_status(self, engine_status: dict) -> None:
+        # Debug logging to capture full API response
+        _LOGGER.debug("=== FULL ENGINE_STATUS API RESPONSE ===")
+        _LOGGER.debug(engine_status)
+        _LOGGER.debug("=== END ENGINE_STATUS ===")
 
         self._features[VehicleFeatures.RemoteStartStatus] = ToyotaRemoteStart(
             date=engine_status.get("date"),
@@ -161,6 +174,16 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     #
 
     def _parse_electric_status(self, electric_status: dict) -> None:
+        # Debug logging to capture full API response
+        _LOGGER.debug("=== FULL ELECTRIC_STATUS API RESPONSE ===")
+        _LOGGER.debug(electric_status)
+        _LOGGER.debug("=== END ELECTRIC_STATUS ===")
+
+        # Log all available chargeInfo fields for discovery
+        if "vehicleInfo" in electric_status and "chargeInfo" in electric_status["vehicleInfo"]:
+            charge_info = electric_status["vehicleInfo"]["chargeInfo"]
+            _LOGGER.info(f"Available chargeInfo fields: {list(charge_info.keys())}")
+
         self._features[VehicleFeatures.ChargeDistance] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistance"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
         self._features[VehicleFeatures.ChargeDistanceAC] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["evDistanceAC"], electric_status["vehicleInfo"]["chargeInfo"]["evDistanceUnit"])
         self._features[VehicleFeatures.ChargeLevel] = ToyotaNumeric(electric_status["vehicleInfo"]["chargeInfo"]["chargeRemainingAmount"], "%")
@@ -182,12 +205,19 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         return section["values"][1]["value"].lower() == "locked"
 
     def _parse_vehicle_status(self, vehicle_status: dict) -> None:
+        # Debug logging to capture full API response
+        _LOGGER.debug("=== FULL VEHICLE_STATUS API RESPONSE ===")
+        _LOGGER.debug(vehicle_status)
+        _LOGGER.debug("=== END VEHICLE_STATUS ===")
 
         # Real-time location is a one-off, so we'll just parse it out here
         if "latitude" in vehicle_status and "longitude" in vehicle_status:
             self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
                 vehicle_status["latitude"], vehicle_status["longitude"]
             )
+
+        # Track unmapped categories for discovery
+        unmapped_categories = []
 
         for category in vehicle_status["vehicleStatus"]:
             for section in category["sections"]:
@@ -212,12 +242,27 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                             closed=self._isClosed(section),
                             locked=self._isLocked(section),
                         )
+                else:
+                    # Track unmapped categories
+                    unmapped_categories.append(f"{key}: {section.get('values', [])}")
+
+        # Log any unmapped categories we discovered
+        if unmapped_categories:
+            _LOGGER.warning(f"UNMAPPED VEHICLE_STATUS CATEGORIES FOUND: {unmapped_categories}")
 
     #
     # get_telemetry
     #
 
     def _parse_telemetry(self, telemetry: dict) -> None:
+        # Debug logging to capture full API response
+        _LOGGER.debug("=== FULL TELEMETRY API RESPONSE ===")
+        _LOGGER.debug(telemetry)
+        _LOGGER.debug("=== END TELEMETRY ===")
+
+        # Track unmapped fields for discovery
+        unmapped_fields = []
+
         for key, value in telemetry.items():
 
             # last time stamp is a primitive
@@ -247,3 +292,11 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     value["value"], value["unit"]
                 )
                 continue
+
+            # Track unmapped fields
+            if key not in ["lastTimestamp", "tirePressureTimestamp", "fuelLevel", "vehicleLocation"] and key not in self._vehicle_telemetry_map:
+                unmapped_fields.append(f"{key}: {value}")
+
+        # Log any unmapped fields we discovered
+        if unmapped_fields:
+            _LOGGER.warning(f"UNMAPPED TELEMETRY FIELDS FOUND: {unmapped_fields}")
