@@ -7,12 +7,22 @@ from toyota_na.auth import ToyotaOneAuth
 from toyota_na.client import ToyotaOneClient
 
 # Patch client code
-from .patch_client import get_electric_realtime_status, get_electric_status, api_request, _auth_headers, get_telemetry
+from .patch_client import (
+    get_electric_realtime_status,
+    get_electric_status,
+    api_request,
+    _auth_headers,
+    get_telemetry,
+    get_vehicle_health,
+    get_vehicle_status_details
+)
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
 ToyotaOneClient.api_request = api_request
 ToyotaOneClient._auth_headers = _auth_headers
 ToyotaOneClient.get_telemetry = get_telemetry
+ToyotaOneClient.get_vehicle_health = get_vehicle_health
+ToyotaOneClient.get_vehicle_status_details = get_vehicle_status_details
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
@@ -63,7 +73,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor"]
+PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
     @service.verify_domain_control(hass, DOMAIN)
