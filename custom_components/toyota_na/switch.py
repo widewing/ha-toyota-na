@@ -23,27 +23,25 @@ async def async_setup_entry(
     """Set up the Toyota switches by config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     entities = []
-    for index, vehicle in enumerate(coordinator.data):
+    for vehicle in coordinator.data:
         # Only add remote start switch if vehicle has remote subscription
         if vehicle.subscribed:
-            entities.append(ToyotaRemoteStartSwitch(coordinator, vehicle, index))
+            entities.append(ToyotaRemoteStartSwitch(coordinator, vehicle.vin))
     async_add_entities(entities)
 
 
 class ToyotaRemoteStartSwitch(ToyotaNABaseEntity, SwitchEntity):
     """Representation of a Toyota remote start switch."""
 
-    def __init__(self, coordinator, vehicle: ToyotaVehicle, index: int):
+    def __init__(self, coordinator, vin: str):
         """Initialize the remote start switch."""
-        super().__init__(coordinator, vehicle, index)
-        self._attr_name = f"{vehicle.model_name} Remote Start"
-        self._attr_unique_id = f"{vehicle.vin}_remote_start_switch"
+        super().__init__(coordinator, "Remote Start", vin)
         self._attr_icon = "mdi:car-key"
 
     @property
     def is_on(self) -> bool:
         """Return true if vehicle is remotely started."""
-        if VehicleFeatures.RemoteStartStatus in self.vehicle.features:
+        if self.vehicle and VehicleFeatures.RemoteStartStatus in self.vehicle.features:
             remote_status = self.vehicle.features[VehicleFeatures.RemoteStartStatus]
             return remote_status.on if hasattr(remote_status, 'on') else False
         return False
@@ -53,12 +51,16 @@ class ToyotaRemoteStartSwitch(ToyotaNABaseEntity, SwitchEntity):
         """Return if entity is available."""
         return (
             self.coordinator.last_update_success
+            and self.vehicle is not None
             and VehicleFeatures.RemoteStartStatus in self.vehicle.features
             and self.vehicle.subscribed
         )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the remote start."""
+        if not self.vehicle:
+            _LOGGER.error("Vehicle not found")
+            return
         try:
             _LOGGER.info(f"Remote starting {self.vehicle.model_name} (VIN: {self.vehicle.vin})")
             await self.vehicle.send_command(RemoteRequestCommand.EngineStart)
@@ -70,6 +72,9 @@ class ToyotaRemoteStartSwitch(ToyotaNABaseEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the remote start."""
+        if not self.vehicle:
+            _LOGGER.error("Vehicle not found")
+            return
         try:
             _LOGGER.info(f"Remote stopping {self.vehicle.model_name} (VIN: {self.vehicle.vin})")
             await self.vehicle.send_command(RemoteRequestCommand.EngineStop)
@@ -83,7 +88,7 @@ class ToyotaRemoteStartSwitch(ToyotaNABaseEntity, SwitchEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional state attributes."""
         attrs = {}
-        if VehicleFeatures.RemoteStartStatus in self.vehicle.features:
+        if self.vehicle and VehicleFeatures.RemoteStartStatus in self.vehicle.features:
             remote_status = self.vehicle.features[VehicleFeatures.RemoteStartStatus]
             if hasattr(remote_status, 'date'):
                 attrs["last_started"] = remote_status.date
