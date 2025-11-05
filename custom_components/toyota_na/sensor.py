@@ -1,9 +1,10 @@
 from typing import Any, Union, cast
+from datetime import datetime
 
 from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
 from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant
@@ -49,6 +50,29 @@ async def async_setup_entry(
                         vehicle.vin,
                     )
                 )
+
+        # Add caution count sensor if vehicle has remote subscription
+        if vehicle.subscribed:
+            sensors.append(
+                ToyotaCautionCountSensor(
+                    coordinator,
+                    "Caution Count",
+                    vehicle.vin,
+                )
+            )
+
+        # Add subscription expiration sensors
+        if hasattr(vehicle, 'subscriptions') and vehicle.subscriptions:
+            for subscription in vehicle.subscriptions:
+                if subscription.get('status') == 'ACTIVE':
+                    sensors.append(
+                        ToyotaSubscriptionSensor(
+                            coordinator,
+                            f"{subscription.get('displayProductName', 'Unknown')} Subscription",
+                            vehicle.vin,
+                            subscription.get('subscriptionID'),
+                        )
+                    )
 
     async_add_devices(sensors, True)
 
@@ -100,3 +124,91 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
                     return UnitOfLength.KILOMETERS
 
         return self._unit_of_measurement
+
+
+class ToyotaCautionCountSensor(ToyotaNABaseEntity):
+    """Sensor for vehicle caution/warning count."""
+
+    def __init__(self, coordinator, name: str, vin: str):
+        """Initialize the caution count sensor."""
+        super().__init__(coordinator, name, vin)
+        self._attr_icon = "mdi:alert-circle"
+        self._attr_device_class = None
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def state(self):
+        """Return the caution count."""
+        if self.vehicle and hasattr(self.vehicle, 'caution_count'):
+            return self.vehicle.caution_count
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.vehicle is not None
+            and hasattr(self.vehicle, 'caution_count')
+            and self.vehicle.caution_count is not None
+        )
+
+
+class ToyotaSubscriptionSensor(ToyotaNABaseEntity):
+    """Sensor for subscription expiration information."""
+
+    def __init__(self, coordinator, name: str, vin: str, subscription_id: str):
+        """Initialize the subscription sensor."""
+        super().__init__(coordinator, name, vin)
+        self._subscription_id = subscription_id
+        self._attr_icon = "mdi:calendar-clock"
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def state(self):
+        """Return the subscription end date as ISO timestamp."""
+        subscription = self._get_subscription()
+        if subscription and subscription.get('subscriptionEndDate'):
+            try:
+                # Parse the date string and return as ISO format for timestamp device class
+                end_date = datetime.strptime(subscription['subscriptionEndDate'], "%Y-%m-%d")
+                return end_date.isoformat()
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional subscription details."""
+        subscription = self._get_subscription()
+        if subscription:
+            attrs = {
+                "subscription_type": subscription.get('type'),
+                "status": subscription.get('status'),
+                "remaining_days": subscription.get('subscriptionRemainingDays'),
+                "product_code": subscription.get('productCode'),
+                "renewable": subscription.get('renewable'),
+                "auto_renew": subscription.get('autoRenew'),
+            }
+            # Add display term if available
+            if subscription.get('displayTerm'):
+                attrs["display_term"] = subscription['displayTerm']
+            return attrs
+        return {}
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.vehicle is not None
+            and self._get_subscription() is not None
+        )
+
+    def _get_subscription(self):
+        """Get the subscription data for this sensor."""
+        if self.vehicle and hasattr(self.vehicle, 'subscriptions'):
+            for sub in self.vehicle.subscriptions:
+                if sub.get('subscriptionID') == self._subscription_id:
+                    return sub
+        return None

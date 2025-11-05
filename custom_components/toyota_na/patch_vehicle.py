@@ -21,39 +21,54 @@ async def get_vehicles(client: ToyotaOneClient) -> list[ToyotaVehicle]:
     supportedGenerations = dict((item.value, item) for item in ApiVehicleGeneration)
     vehicles = []
 
-    for (i, vehicle) in enumerate(api_vehicles):
+    for (i, vehicle_data) in enumerate(api_vehicles):
         # Log each vehicle's key attributes
-        _LOGGER.info(f"Vehicle {i}: {vehicle.get('modelName')} {vehicle.get('modelYear')} - Generation: {vehicle.get('generation')}, EV: {vehicle.get('evVehicle')}, Remote: {vehicle.get('remoteSubscriptionStatus')}")
-        if vehicle["generation"] not in supportedGenerations:
+        _LOGGER.info(f"Vehicle {i}: {vehicle_data.get('modelName')} {vehicle_data.get('modelYear')} - Generation: {vehicle_data.get('generation')}, EV: {vehicle_data.get('evVehicle')}, Remote: {vehicle_data.get('remoteSubscriptionStatus')}")
+        if vehicle_data["generation"] not in supportedGenerations:
             continue
+
+        vehicle = None
         if (
-            ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.CY17PLUS
-            or ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.MM21
+            ApiVehicleGeneration(vehicle_data["generation"]) == ApiVehicleGeneration.CY17PLUS
+            or ApiVehicleGeneration(vehicle_data["generation"]) == ApiVehicleGeneration.MM21
         ):
             vehicle = SeventeenCYPlusToyotaVehicle(
                 client=client,
-                has_remote_subscription=vehicle["remoteSubscriptionStatus"] == "ACTIVE",
-                has_electric=vehicle["evVehicle"] == True,
-                model_name=vehicle["modelName"],
-                model_year=vehicle["modelYear"],
-                vin=vehicle["vin"],
-                region=vehicle["region"],
+                has_remote_subscription=vehicle_data["remoteSubscriptionStatus"] == "ACTIVE",
+                has_electric=vehicle_data["evVehicle"] == True,
+                model_name=vehicle_data["modelName"],
+                model_year=vehicle_data["modelYear"],
+                vin=vehicle_data["vin"],
+                region=vehicle_data["region"],
             )
 
-        elif ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.CY17:
+        elif ApiVehicleGeneration(vehicle_data["generation"]) == ApiVehicleGeneration.CY17:
             vehicle = SeventeenCYToyotaVehicle(
                 client=client,
-                has_remote_subscription=vehicle["remoteSubscriptionStatus"] == "ACTIVE",
-                has_electric=vehicle["evVehicle"] == True,
-                model_name=vehicle["modelName"],
-                model_year=vehicle["modelYear"],
-                vin=vehicle["vin"],
-                region=vehicle["region"],
+                has_remote_subscription=vehicle_data["remoteSubscriptionStatus"] == "ACTIVE",
+                has_electric=vehicle_data["evVehicle"] == True,
+                model_name=vehicle_data["modelName"],
+                model_year=vehicle_data["modelYear"],
+                vin=vehicle_data["vin"],
+                region=vehicle_data["region"],
             )
 
-        vehicle_update = vehicle.update()
-        if vehicle_update:
-            await vehicle_update
-            vehicles.append(vehicle)
+        if vehicle:
+            # Store additional metadata as custom attributes
+            vehicle.metadata = {
+                "color": vehicle_data.get("color"),
+                "imei": vehicle_data.get("imei"),
+                "manufactured_date": vehicle_data.get("manufacturedDate"),
+                "date_of_first_use": vehicle_data.get("dateOfFirstUse"),
+                "katashiki_code": vehicle_data.get("katashikiCode"),
+            }
+
+            # Store subscription information
+            vehicle.subscriptions = vehicle_data.get("subscriptions", [])
+
+            vehicle_update = vehicle.update()
+            if vehicle_update:
+                await vehicle_update
+                vehicles.append(vehicle)
 
     return vehicles
