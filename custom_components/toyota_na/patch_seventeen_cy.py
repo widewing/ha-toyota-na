@@ -130,14 +130,18 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
         # Try to get electric status for both EVs and hybrids
         # Some hybrids may be marked as non-EV but still have electric data
+        _LOGGER.info(f"Attempting to fetch electric status for {self._model_name} (marked as EV: {self._has_electric})")
         try:
             # electric_status
             electric_status = await self._client.get_electric_status(self.vin)
+            _LOGGER.debug(f"Electric status response: {electric_status}")
             if electric_status is not None:
                 self._parse_electric_status(electric_status)
                 # If we successfully got electric data, ensure we know this vehicle has electric capability
                 if not self._has_electric:
                     _LOGGER.info(f"Vehicle {self._model_name} was marked as non-EV but has electric data (likely a hybrid)")
+            else:
+                _LOGGER.info(f"Electric status returned None for {self._model_name}")
         except Exception as e:
             if self._has_electric:
                 # Only log error if we expected electric data
