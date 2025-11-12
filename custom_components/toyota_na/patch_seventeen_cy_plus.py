@@ -108,9 +108,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             pass
 
         try:
-            # engine_status
-            engine_status = await self._client.get_engine_status(self._vin)
-            self._parse_engine_status(engine_status)
+            if self._has_remote_subscription:
+                # engine_status
+                engine_status = await self._client.get_engine_status(self._vin)
+                self._parse_engine_status(engine_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
