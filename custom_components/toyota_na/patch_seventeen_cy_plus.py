@@ -255,9 +255,9 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     # Track unmapped categories
                     unmapped_categories.append(f"{key}: {section.get('values', [])}")
 
-        # Log any unmapped categories we discovered
+        # Log any unmapped categories we discovered (debug level since we've already identified them)
         if unmapped_categories:
-            _LOGGER.warning(f"UNMAPPED VEHICLE_STATUS CATEGORIES FOUND: {unmapped_categories}")
+            _LOGGER.debug(f"Unmapped vehicle_status categories: {unmapped_categories}")
 
     #
     # get_telemetry
@@ -306,6 +306,6 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             if key not in ["lastTimestamp", "tirePressureTimestamp", "fuelLevel", "vehicleLocation"] and key not in self._vehicle_telemetry_map:
                 unmapped_fields.append(f"{key}: {value}")
 
-        # Log any unmapped fields we discovered
+        # Log any unmapped fields we discovered (debug level since we've already identified them)
         if unmapped_fields:
-            _LOGGER.warning(f"UNMAPPED TELEMETRY FIELDS FOUND: {unmapped_fields}")
+            _LOGGER.debug(f"Unmapped telemetry fields: {unmapped_fields}")

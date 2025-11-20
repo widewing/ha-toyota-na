@@ -135,7 +135,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
         # Try to get electric status for both EVs and hybrids
         # Some hybrids may be marked as non-EV but still have electric data
-        _LOGGER.info(f"Attempting to fetch electric status for {self._model_name} (marked as EV: {self._has_electric})")
+        _LOGGER.debug(f"Attempting to fetch electric status for {self._model_name} (marked as EV: {self._has_electric})")
         try:
             # electric_status
             electric_status = await self._client.get_electric_status(self.vin)
@@ -146,7 +146,7 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 if not self._has_electric:
                     _LOGGER.info(f"Vehicle {self._model_name} was marked as non-EV but has electric data (likely a hybrid)")
             else:
-                _LOGGER.info(f"Electric status returned None for {self._model_name}")
+                _LOGGER.debug(f"Electric status returned None for {self._model_name}")
         except Exception as e:
             if self._has_electric:
                 # Only log error if we expected electric data
@@ -292,9 +292,9 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                     # Track unmapped categories
                     unmapped_categories.append(f"{key}: {section.get('values', [])}")
 
-        # Log any unmapped categories we discovered
+        # Log any unmapped categories we discovered (debug level since we've already identified them)
         if unmapped_categories:
-            _LOGGER.warning(f"UNMAPPED VEHICLE_STATUS CATEGORIES FOUND: {unmapped_categories}")
+            _LOGGER.debug(f"Unmapped vehicle_status categories: {unmapped_categories}")
 
     #
     # get_telemetry
@@ -343,6 +343,6 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
             if key not in ["lastTimestamp", "tirePressureTimestamp", "fuelLevel", "vehicleLocation"] and key not in self._vehicle_telemetry_map:
                 unmapped_fields.append(f"{key}: {value}")
 
-        # Log any unmapped fields we discovered
+        # Log any unmapped fields we discovered (debug level since we've already identified them)
         if unmapped_fields:
-            _LOGGER.warning(f"UNMAPPED TELEMETRY FIELDS FOUND: {unmapped_fields}")
+            _LOGGER.debug(f"Unmapped telemetry fields: {unmapped_fields}")

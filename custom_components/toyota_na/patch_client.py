@@ -15,7 +15,7 @@ async def get_telemetry(self, vin, region, generation="17CYPLUS"):
 async def get_vehicle_health(self, vin):
     """Attempt to get vehicle health report which may include tire pressure."""
     try:
-        _LOGGER.info(f"Attempting to fetch vehicle health report for VIN {vin}")
+        _LOGGER.debug(f"Attempting to fetch vehicle health report for VIN {vin}")
         response = await self.api_get("/v2/vehicle/health", {"VIN": vin})
         _LOGGER.debug(f"Vehicle health response: {response}")
         return response
@@ -26,7 +26,7 @@ async def get_vehicle_health(self, vin):
 async def get_vehicle_status_details(self, vin):
     """Attempt to get detailed vehicle status which may include tire pressure."""
     try:
-        _LOGGER.info(f"Attempting to fetch detailed vehicle status for VIN {vin}")
+        _LOGGER.debug(f"Attempting to fetch detailed vehicle status for VIN {vin}")
         response = await self.api_get("/v2/vehicle/status/details", {"VIN": vin})
         _LOGGER.debug(f"Vehicle status details response: {response}")
         return response
