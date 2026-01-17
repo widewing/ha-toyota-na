@@ -83,7 +83,7 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
 
     @property
     def state_class(self):
-        return self.feature(self._vehicle_feature) is not None
+        return self._state_class
 
     @property
     def unit_of_measurement(self):
