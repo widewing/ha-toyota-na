@@ -105,7 +105,8 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 vehicle_status = await self._client.get_vehicle_status(
                     self._vin, self._generation.value
                 )
-                self._parse_vehicle_status(vehicle_status)
+                if vehicle_status is not None:
+                    self._parse_vehicle_status(vehicle_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -123,7 +124,8 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
             engine_status = await self._client.get_engine_status(
                 self._vin, self._generation.value
             )
-            self._parse_engine_status(engine_status)
+            if engine_status is not None:
+                self._parse_engine_status(engine_status)
         except Exception as e:
             _LOGGER.error(e)
             pass
@@ -140,7 +142,10 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
 
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""
-        await self._client.send_refresh_status(self._vin, self._generation.value)
+        try:
+            await self._client.send_refresh_status(self._vin, self._generation.value)
+        except Exception as e:
+            _LOGGER.warning("Vehicle refresh request failed: %s", e)
 
         """Tell Toyota to refresh electric status if applicable"""
         try:
