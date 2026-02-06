@@ -21,6 +21,7 @@ async def _auth_headers(self):
         "X-CHANNEL": "ONEAPP",
         "X-BRAND": "T",
         "x-region": "US",
+        "X-APPVERSION": "3.1.0",
     }
 
 
