@@ -63,24 +63,19 @@ class ToyotaLock(ToyotaNABaseEntity, LockEntity):
 
     @property
     def is_locked(self):
-        _is_locked = True
+        if self.vehicle is None:
+            return None
 
-        if self.vehicle is not None:
+        all_locks = [
+            feature
+            for feature in self.vehicle.features.values()
+            if isinstance(feature, ToyotaLockableOpening)
+        ]
 
-            all_locks = [
-                feature
-                for feature in self.vehicle.features.values()
-                if isinstance(feature, ToyotaLockableOpening)
-            ]
+        if not all_locks:
+            return None
 
-            for lock in all_locks:
-                if lock.locked is False:
-                    _is_locked = False
-
-        else:
-            _is_locked = False
-
-        return _is_locked
+        return all(lock.locked for lock in all_locks)
 
     @property
     def is_locking(self):

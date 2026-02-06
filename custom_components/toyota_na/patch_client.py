@@ -31,42 +31,39 @@ async def _auth_headers(self):
     }
 
 async def get_vehicle_status_17cyplus(self, vin):
-    """Vehicle status - tries v1 then v2."""
-    for ep in ["v1/global/remote/status", "v2/remote/status"]:
-        try:
-            res = await self.api_get(ep, {"VIN": vin, "X-BRAND": "T", "x-region": "US"})
-            if res and res.get("vehicleStatus"):
-                return res
-        except Exception as e:
-            _LOGGER.debug("%s failed: %s", ep, e)
+    """Vehicle status via v2 endpoint (v1 is broken for 21MM/TLS3 vehicles)."""
+    try:
+        res = await self.api_get("v2/remote/status", {"VIN": vin, "X-BRAND": "T", "x-region": "US", "GENERATION": "17CYPLUS"})
+        if res and res.get("vehicleStatus"):
+            return res
+    except Exception as e:
+        _LOGGER.debug("vehicle_status v2/remote/status failed: %s", e)
     return None
 
 async def get_engine_status_17cyplus(self, vin):
-    """Engine status - tries v1 then v2."""
-    for ep in ["v1/global/remote/engine-status", "v2/remote/engine-status"]:
-        try:
-            res = await self.api_get(ep, {"VIN": vin, "X-BRAND": "T", "x-region": "US"})
-            if res:
-                return res
-        except Exception as e:
-            _LOGGER.debug("%s failed: %s", ep, e)
+    """Engine status via v2 (v1/global/remote/engine-status is broken for 21MM)."""
+    try:
+        res = await self.api_get("v2/remote/engine-status", {"VIN": vin, "X-BRAND": "T", "x-region": "US"})
+        if res:
+            return res
+    except Exception as e:
+        _LOGGER.debug("engine_status v2/remote/engine-status failed: %s", e)
     return None
 
 async def send_refresh_request_17cyplus(self, vin):
-    """Refresh status - tries v1 then v2."""
-    for ep in ["v1/global/remote/refresh-status", "v2/remote/refresh-status"]:
-        try:
-            return await self.api_post(
-                ep,
-                {
-                    "guid": await self.auth.get_guid(),
-                    "deviceId": self.auth.get_device_id(),
-                    "vin": vin,
-                },
-                {"VIN": vin, "X-BRAND": "T", "x-region": "US"},
-            )
-        except Exception as e:
-            _LOGGER.debug("%s failed: %s", ep, e)
+    """Refresh status via v1/global/remote/refresh-status."""
+    try:
+        return await self.api_post(
+            "v1/global/remote/refresh-status",
+            {
+                "guid": await self.auth.get_guid(),
+                "deviceId": self.auth.get_device_id(),
+                "vin": vin,
+            },
+            {"VIN": vin, "X-BRAND": "T", "x-region": "US"},
+        )
+    except Exception as e:
+        _LOGGER.debug("refresh-status failed: %s", e)
     return None
 
 async def remote_request_17cyplus(self, vin, command):

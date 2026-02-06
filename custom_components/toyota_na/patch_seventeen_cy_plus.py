@@ -20,6 +20,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     _has_remote_subscription = False
     _has_electric = False
+    _last_vehicle_status = None  # persist last successful status across polls
 
     _command_map = {
         RemoteRequestCommand.DoorLock: "door-lock",
@@ -98,14 +99,13 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             if self._has_remote_subscription:
-                # vehicle_health_status - use 17cyplus endpoint
                 vehicle_status = await self._client.get_vehicle_status_17cyplus(self._vin)
                 if vehicle_status:
-                    _LOGGER.debug("Vehicle status received: %d features in vehicleStatus",
-                                  len(vehicle_status.get("vehicleStatus", [])))
+                    self._last_vehicle_status = vehicle_status
                     self._parse_vehicle_status(vehicle_status)
-                else:
-                    _LOGGER.debug("Vehicle status returned None for VIN %s", self._vin[-4:])
+                elif self._last_vehicle_status:
+                    # Re-parse last known good status so features persist
+                    self._parse_vehicle_status(self._last_vehicle_status)
         except Exception as e:
             _LOGGER.debug("Error fetching vehicle status: %s", e)
             pass
@@ -147,12 +147,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         try:
             await self._client.send_refresh_request_17cyplus(self._vin)
         except Exception as e:
-            _LOGGER.warning("Vehicle refresh request failed: %s", e)
+            _LOGGER.debug("Vehicle refresh request failed: %s", e)
 
-        """Tell Toyota to refresh electric status if applicable"""
         try:
             if self._has_electric:
-                # electric_status
                 electric_status = await self._client.get_electric_realtime_status(self.vin)
                 if electric_status:
                     self._parse_electric_status(electric_status)
