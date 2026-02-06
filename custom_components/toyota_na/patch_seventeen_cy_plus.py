@@ -20,6 +20,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     _has_remote_subscription = False
     _has_electric = False
+    _last_vehicle_status = None  # persist last successful status across polls
 
     _command_map = {
         RemoteRequestCommand.DoorLock: "door-lock",
@@ -98,31 +99,32 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             if self._has_remote_subscription:
-                # vehicle_health_status
-                vehicle_status = await self._client.get_vehicle_status(self._vin)
+                vehicle_status = await self._client.get_vehicle_status_17cyplus(self._vin)
                 if vehicle_status:
+                    self._last_vehicle_status = vehicle_status
                     self._parse_vehicle_status(vehicle_status)
+                elif self._last_vehicle_status:
+                    # Re-parse last known good status so features persist
+                    self._parse_vehicle_status(self._last_vehicle_status)
         except Exception as e:
-            _LOGGER.debug("Error parsing vehicle status: %s", e)
+            _LOGGER.debug("Error fetching vehicle status: %s", e)
             pass
 
         try:
-            # telemetry
             telemetry = await self._client.get_telemetry(self._vin, self._region)
             if telemetry:
                 self._parse_telemetry(telemetry)
         except Exception as e:
-            _LOGGER.debug("Error parsing telemetry: %s", e)
+            _LOGGER.debug("Error fetching telemetry: %s", e)
             pass
 
         try:
             if self._has_remote_subscription:
-                # engine_status
-                engine_status = await self._client.get_engine_status(self._vin)
+                engine_status = await self._client.get_engine_status_17cyplus(self._vin)
                 if engine_status:
                     self._parse_engine_status(engine_status)
         except Exception as e:
-            _LOGGER.debug("Error parsing engine status: %s", e)
+            _LOGGER.debug("Error fetching engine status: %s", e)
             pass
 
         try:
@@ -138,14 +140,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status."""
         try:
-            await self._client.send_refresh_status(self._vin)
+            await self._client.send_refresh_request_17cyplus(self._vin)
         except Exception as e:
-            _LOGGER.warning("Vehicle refresh request failed: %s", e)
+            _LOGGER.debug("Vehicle refresh request failed: %s", e)
 
-        """Tell Toyota to refresh electric status if applicable"""
         try:
             if self._has_electric:
-                # electric_status
                 electric_status = await self._client.get_electric_realtime_status(self.vin)
                 if electric_status:
                     self._parse_electric_status(electric_status)
@@ -155,7 +155,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     async def send_command(self, command: RemoteRequestCommand) -> None:
         """Start the engine. Periodically refreshes the vehicle status to determine if the engine is running."""
-        await self._client.remote_request(self._vin, self._command_map[command])
+        await self._client.remote_request_17cyplus(self._vin, self._command_map[command])
 
     #
     # engine_status
