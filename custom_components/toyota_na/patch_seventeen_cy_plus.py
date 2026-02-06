@@ -98,11 +98,11 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             if self._has_remote_subscription:
-                # vehicle_health_status
-                vehicle_status = await self._client.get_vehicle_status(self._vin)
+                # vehicle_health_status - use 17cyplus endpoint
+                vehicle_status = await self._client.get_vehicle_status_17cyplus(self._vin)
                 self._parse_vehicle_status(vehicle_status)
         except Exception as e:
-            _LOGGER.error(e)
+            _LOGGER.error("Error fetching vehicle status: %s", e)
             pass
 
         try:
@@ -110,16 +110,16 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             telemetry = await self._client.get_telemetry(self._vin, self._region)
             self._parse_telemetry(telemetry)
         except Exception as e:
-            _LOGGER.error(e)
+            _LOGGER.error("Error fetching telemetry: %s", e)
             pass
 
         try:
             if self._has_remote_subscription:
-                # engine_status
-                engine_status = await self._client.get_engine_status(self._vin)
+                # engine_status - use 17cyplus endpoint
+                engine_status = await self._client.get_engine_status_17cyplus(self._vin)
                 self._parse_engine_status(engine_status)
         except Exception as e:
-            _LOGGER.error(e)
+            _LOGGER.error("Error fetching engine status: %s", e)
             pass
 
         try:
@@ -134,7 +134,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     async def poll_vehicle_refresh(self) -> None:
         """Instructs Toyota's systems to ping the vehicle to upload a fresh status. Useful when certain actions have been taken, such as locking or unlocking doors."""
-        await self._client.send_refresh_status(self._vin)
+        await self._client.send_refresh_request_17cyplus(self._vin)
 
         """Tell Toyota to refresh electric status if applicable"""
         try:
@@ -149,7 +149,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     async def send_command(self, command: RemoteRequestCommand) -> None:
         """Start the engine. Periodically refreshes the vehicle status to determine if the engine is running."""
-        await self._client.remote_request(self._vin, self._command_map[command])
+        await self._client.remote_request_17cyplus(self._vin, self._command_map[command])
 
     #
     # engine_status
