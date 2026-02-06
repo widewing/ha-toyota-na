@@ -1,49 +1,152 @@
 import logging
 from urllib.parse import urljoin, urlencode
-
 import aiohttp
 
 API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
+USER_AGENT = "ToyotaOneApp/3.10.0 (com.toyota.oneapp; build:3100; Android 14) okhttp/4.12.0"
 
-async def get_telemetry(self, vin, region, generation="17CYPLUS"):
-    return await self.api_get(
-        "/v2/telemetry", {"VIN": vin, "GENERATION": generation, "X-BRAND": "T", "x-region": region}
-    )
+_LOGGER = logging.getLogger(__name__)
+
+
+async def get_telemetry(self, vin, region="US", generation="17CYPLUS"):
+    try:
+        return await self.api_get(
+            "v2/telemetry", {"VIN": vin, "GENERATION": generation, "X-BRAND": "T", "x-region": region}
+        )
+    except Exception as e:
+        _LOGGER.debug("v2/telemetry failed: %s", e)
+        return None
 
 async def _auth_headers(self):
     return {
         "AUTHORIZATION": "Bearer " + await self.auth.get_access_token(),
         "X-API-KEY": self.API_KEY,
         "X-GUID": await self.auth.get_guid(),
-        "X-CHANNEL": "ONEAPP"
+        "X-CHANNEL": "ONEAPP",
+        "X-BRAND": "T",
+        "x-region": "US",
+        "X-APPVERSION": "3.1.0",
+        "User-Agent": USER_AGENT,
+        "Accept": "application/json",
     }
 
-async def get_electric_realtime_status(self, vin, generation="17CYPLUS"):
-    realtime_electric_status = await self.api_post(
-        "v2/electric/realtime-status",
-        {},
-        {
-            "device-id": self.auth.get_device_id(),
-            "vin": vin,
-        },
-    )
-    if generation == "17CYPLUS":
-        return await self.get_electric_status(vin, realtime_electric_status["appRequestNo"])
-    elif realtime_electric_status["returnCode"] == "ONE-RES-10000":
-        return await self.get_electric_status(vin)
+async def get_vehicle_status_17cyplus(self, vin):
+    """Vehicle status - tries v2 then v1."""
+    # v2/remote/status is sometimes empty for 21MM, so we prefer v1 if it works
+    for ep in ["v1/global/remote/status", "v2/remote/status"]:
+        try:
+            res = await self.api_get(ep, {"VIN": vin, "X-BRAND": "T", "x-region": "US"})
+            if res and res.get("vehicleStatus"):
+                return res
+        except Exception as e:
+            _LOGGER.debug("%s failed: %s", ep, e)
+    return None
 
+async def get_engine_status_17cyplus(self, vin):
+    """Engine status - tries v1 then v2."""
+    for ep in ["v1/global/remote/engine-status", "v2/remote/engine-status"]:
+        try:
+            res = await self.api_get(ep, {"VIN": vin, "X-BRAND": "T", "x-region": "US"})
+            if res:
+                return res
+        except Exception as e:
+            _LOGGER.debug("%s failed: %s", ep, e)
+    return None
+
+async def send_refresh_request_17cyplus(self, vin):
+    """Refresh status - tries v1 then v2."""
+    # v1/global/remote/refresh-status confirmed working with 3.1.0 header
+    for ep in ["v1/global/remote/refresh-status", "v2/remote/refresh-status"]:
+        try:
+            return await self.api_post(
+                ep,
+                {
+                    "guid": await self.auth.get_guid(),
+                    "deviceId": self.auth.get_device_id(),
+                    "vin": vin,
+                },
+                {"VIN": vin, "X-BRAND": "T", "x-region": "US"},
+            )
+        except Exception as e:
+            _LOGGER.debug("%s failed: %s", ep, e)
+    return None
+
+async def remote_request_17cyplus(self, vin, command):
+    """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
+    # Confirming v1/global/remote/command works for 21MM with header
+    return await self.api_post(
+        "v1/global/remote/command", {"command": command},
+        {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
+    )
+
+async def get_vehicle_status_17cy(self, vin):
+    """Legacy vehicle status."""
+    try:
+        return await self.api_get("v2/legacy/remote/status", {"X-BRAND": "T", "VIN": vin})
+    except Exception as e:
+        _LOGGER.debug("v2/legacy/remote/status failed: %s", e)
+        return None
+
+async def get_engine_status_17cy(self, vin):
+    """Legacy engine status."""
+    try:
+        return await self.api_get("v1/legacy/remote/engine-status", {"X-BRAND": "T", "VIN": vin})
+    except Exception as e:
+        _LOGGER.debug("v1/legacy/remote/engine-status failed: %s", e)
+        return None
+
+async def send_refresh_request_17cy(self, vin):
+    """Legacy refresh status."""
+    try:
+        return await self.api_post(
+            "v1/legacy/remote/refresh-status",
+            {
+                "guid": await self.auth.get_guid(),
+                "deviceId": self.auth.get_device_id(),
+                "deviceType": "Android",
+                "vin": vin,
+            },
+            {"X-BRAND": "T", "VIN": vin},
+        )
+    except Exception as e:
+        _LOGGER.debug("v1/legacy/remote/refresh-status failed: %s", e)
+        return None
+
+async def get_electric_realtime_status(self, vin, generation="17CYPLUS"):
+    try:
+        realtime_electric_status = await self.api_post(
+            "v2/electric/realtime-status",
+            {},
+            {
+                "device-id": self.auth.get_device_id(),
+                "vin": vin,
+                "X-BRAND": "T",
+                "x-region": "US",
+            },
+        )
+        if generation == "17CYPLUS":
+            return await self.get_electric_status(vin, realtime_electric_status["appRequestNo"])
+        elif realtime_electric_status["returnCode"] == "ONE-RES-10000":
+            return await self.get_electric_status(vin)
+    except Exception as e:
+        _LOGGER.debug("Electric realtime status failed: %s", e)
+        return None
 
 async def get_electric_status(self, vin, realtime_status=None):
-    url = "v2/electric/status"
-    if realtime_status:
-        query_params = {"realtime-status": realtime_status}
-        url += "?" + urlencode(query_params)
+    try:
+        url = "v2/electric/status"
+        if realtime_status:
+            query_params = {"realtime-status": realtime_status}
+            url += "?" + urlencode(query_params)
 
-    electric_status = await self.api_get(
-        url, {"VIN": vin}
-    )
-    if "vehicleInfo" in electric_status:
-        return electric_status
+        electric_status = await self.api_get(
+            url, {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
+        )
+        if "vehicleInfo" in electric_status:
+            return electric_status
+    except Exception as e:
+        _LOGGER.debug("Electric status failed: %s", e)
+        return None
 
 async def api_request(self, method, endpoint, header_params=None, **kwargs):
     headers = await self._auth_headers()
@@ -53,14 +156,24 @@ async def api_request(self, method, endpoint, header_params=None, **kwargs):
     if endpoint.startswith("/"):
         endpoint = endpoint[1:]
 
+    url = urljoin(API_GATEWAY, endpoint)
+
     async with aiohttp.ClientSession() as session:
         async with session.request(
-                method, urljoin(API_GATEWAY, endpoint), headers=headers, **kwargs
+                method, url, headers=headers, **kwargs
         ) as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                _LOGGER.debug(
+                    "Toyota API error: %s %s -> %d %s | Response: %s",
+                    method, url, resp.status, resp.reason, body[:500]
+                )
             resp.raise_for_status()
             try:
                 resp_json = await resp.json()
-                return resp_json["payload"]
+                if "payload" in resp_json:
+                    return resp_json["payload"]
+                return resp_json
             except:
-                logging.error("Error parsing response: %s", await resp.text())
+                _LOGGER.error("Error parsing response")
                 raise

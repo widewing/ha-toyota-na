@@ -7,12 +7,32 @@ from toyota_na.auth import ToyotaOneAuth
 from toyota_na.client import ToyotaOneClient
 
 # Patch client code
-from .patch_client import get_electric_realtime_status, get_electric_status, api_request, _auth_headers, get_telemetry
+from .patch_client import (
+    get_electric_realtime_status,
+    get_electric_status,
+    api_request,
+    _auth_headers,
+    get_telemetry,
+    get_vehicle_status_17cyplus,
+    get_engine_status_17cyplus,
+    send_refresh_request_17cyplus,
+    remote_request_17cyplus,
+    get_vehicle_status_17cy,
+    get_engine_status_17cy,
+    send_refresh_request_17cy,
+)
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
 ToyotaOneClient.api_request = api_request
 ToyotaOneClient._auth_headers = _auth_headers
 ToyotaOneClient.get_telemetry = get_telemetry
+ToyotaOneClient.get_vehicle_status_17cyplus = get_vehicle_status_17cyplus
+ToyotaOneClient.get_engine_status_17cyplus = get_engine_status_17cyplus
+ToyotaOneClient.send_refresh_request_17cyplus = send_refresh_request_17cyplus
+ToyotaOneClient.remote_request_17cyplus = remote_request_17cyplus
+ToyotaOneClient.get_vehicle_status_17cy = get_vehicle_status_17cy
+ToyotaOneClient.get_engine_status_17cy = get_engine_status_17cy
+ToyotaOneClient.send_refresh_request_17cy = send_refresh_request_17cy
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
@@ -187,7 +207,10 @@ async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, e
                     f"Your {vehicle.model_year} {vehicle.model_name} needs a remote services subscription to fully work with Home Assistant."
                 )
             if need_refresh and vehicle.subscribed:
-                await vehicle.poll_vehicle_refresh()
+                try:
+                    await vehicle.poll_vehicle_refresh()
+                except Exception as e:
+                    _LOGGER.warning("Vehicle refresh failed (%s), continuing without refresh", e)
             vehicles.append(vehicle)
         entry_data = dict(entry.data)
         entry_data["last_refreshed_at"] = datetime.utcnow().timestamp()
