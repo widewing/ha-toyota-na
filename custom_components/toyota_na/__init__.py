@@ -20,6 +20,10 @@ from .patch_client import (
     get_vehicle_status_17cy,
     get_engine_status_17cy,
     send_refresh_request_17cy,
+    graphql_request,
+    graphql_pre_wake,
+    graphql_confirm_subscription,
+    graphql_refresh_status,
 )
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
@@ -33,6 +37,10 @@ ToyotaOneClient.remote_request_17cyplus = remote_request_17cyplus
 ToyotaOneClient.get_vehicle_status_17cy = get_vehicle_status_17cy
 ToyotaOneClient.get_engine_status_17cy = get_engine_status_17cy
 ToyotaOneClient.send_refresh_request_17cy = send_refresh_request_17cy
+ToyotaOneClient.graphql_request = graphql_request
+ToyotaOneClient.graphql_pre_wake = graphql_pre_wake
+ToyotaOneClient.graphql_confirm_subscription = graphql_confirm_subscription
+ToyotaOneClient.graphql_refresh_status = graphql_refresh_status
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
@@ -67,6 +75,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr, service
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .websocket_handler import ToyotaWebSocketHandler
 
 from .const import (
     COMMAND_MAP,
@@ -175,9 +185,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         update_interval=timedelta(seconds=UPDATE_INTERVAL),
     )
     await coordinator.async_config_entry_first_refresh()
+
+    # Start WebSocket handler for vehicle status push notifications (21MM+)
+    ws_handler = ToyotaWebSocketHandler(client)
+    vins = [v.vin for v in coordinator.data if v.subscribed] if coordinator.data else []
+    if vins:
+        await ws_handler.start(vins)
+    client._ws_handler = ws_handler
+
     hass.data[DOMAIN][entry.entry_id] = {
         "toyota_na_client": client,
         "coordinator": coordinator,
+        "ws_handler": ws_handler,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -229,6 +248,12 @@ async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, e
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
+    # Stop WebSocket handler
+    entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
+    ws_handler = entry_data.get("ws_handler")
+    if ws_handler:
+        await ws_handler.stop()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
