@@ -43,6 +43,9 @@ async def async_setup_entry(
                     continue
                 if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):
                     continue
+                feature = vehicle.features.get(cast(VehicleFeatures, feature_sensor["feature"]))
+                if feature is None:
+                    continue
                 binary_sensors.append(
                     ToyotaBinarySensor(
                         cast(VehicleFeatures, feature_sensor["feature"]),

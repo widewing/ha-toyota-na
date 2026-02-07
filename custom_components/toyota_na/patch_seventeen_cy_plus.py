@@ -270,6 +270,11 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 # We don't support all features necessarily. So avoid throwing on a key error.
                 if self._vehicle_status_category_map.get(key) is not None:
                     values = section.get("values", [])
+                    if not values:
+                        continue
+                    first_val = values[0].get("value", "").lower()
+                    if first_val not in ("closed", "open", "opened", "locked", "unlocked"):
+                        continue
                     # CLOSED is always the first value entry. So we can use it to determine which subtype to instantiate
                     if len(values) == 1:
                         self._features[
@@ -436,6 +441,8 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 continue
 
             if "Window" in key or "Roof" in key:
+                if value not in (1, 2):
+                    continue
                 self._features[
                     self._vehicle_telemetry_map.get(key, key)
                 ] = ToyotaOpening(closed=(value == 2))
