@@ -97,14 +97,20 @@ class ToyotaLock(ToyotaNABaseEntity, LockEntity):
         """Set the lock state via the provided command string."""
         if self.vehicle is not None:
             self._state_changing = True
+            self.async_write_ha_state()
             await self.vehicle.send_command(COMMAND_MAP[command])
+            self.hass.async_create_task(self._background_refresh())
 
-            # TODO: This works great and prevents us from unnecessarily hitting Toyota. But we can and should
-            # probably do stuff like this in the library where we can better control which APIs we hit to refresh our in-memory data.
+    async def _background_refresh(self):
+        """Poll for updated vehicle state after a command, then refresh the coordinator."""
+        try:
             await self.vehicle.poll_vehicle_refresh()
             await asyncio.sleep(10)
             self._state_changing = False
             await self.coordinator.async_request_refresh()
+        except Exception:
+            self._state_changing = False
+            self.async_write_ha_state()
 
     @property
     def available(self):
