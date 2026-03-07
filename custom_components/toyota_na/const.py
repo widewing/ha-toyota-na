@@ -1,7 +1,7 @@
 from toyota_na.vehicle.base_vehicle import VehicleFeatures
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.sensor import SensorStateClass, SensorDeviceClass
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import PERCENTAGE, UnitOfPressure
 
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
@@ -305,20 +305,22 @@ SENSORS = [
         "electric": True,
     },
     {
-    "device_class": SensorDeviceClass.TIMESTAMP,
-    "icon": "mdi:clock",
-    "feature": VehicleFeatures.LastTimeStamp,
-    "name": "Last Update Timestamp",
-    "subscription": False,
-    "electric": False,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.LastTimeStamp,
+        "name": "Last Update Timestamp",
+        "unit": "",
+        "subscription": False,
+        "electric": False,
     },
     {
-    "device_class": SensorDeviceClass.TIMESTAMP,
-    "icon": "mdi:clock",
-    "feature": VehicleFeatures.LastTirePressureTimeStamp,
-    "name": "Last Tire Pressure Update Timestamp",
-    "subscription": False,
-    "electric": False,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:gauge",
+        "feature": VehicleFeatures.LastTirePressureTimeStamp,
+        "name": "Last Tire Pressure Update Timestamp",
+        "unit": "",
+        "subscription": False,
+        "electric": False,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
