@@ -37,12 +37,8 @@ async def async_setup_entry(
 
     for vehicle in coordinator.data:
         for feature_sensor in features_sensors:
-            feature = vehicle.features.get(
-                cast(VehicleFeatures, feature_sensor["feature"])
-            )
-
             entity_config = feature_sensor
-            if entity_config and isinstance(feature, ToyotaLocation):
+            if entity_config:
                 if vehicle.subscribed is False and entity_config["name"] == "Last Parked Location":
                     continue
                 locations.append(

@@ -28,12 +28,8 @@ async def async_setup_entry(
 
     for vehicle in coordinator.data:
         for feature_sensor in SENSORS:
-            feature = vehicle.features.get(
-                cast(VehicleFeatures, feature_sensor["feature"])
-            )
-
             entity_config = feature_sensor
-            if entity_config and isinstance(feature, ToyotaNumeric):
+            if entity_config:
                 if vehicle.electric is False and cast(bool, entity_config["electric"]):
                     continue
                 if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):

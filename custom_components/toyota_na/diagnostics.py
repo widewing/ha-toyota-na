@@ -53,10 +53,12 @@ async def async_get_config_entry_diagnostics(
     for (i, vehicle) in enumerate(user_vehicle_list):
         vin=vehicle["vin"]
 
-        if (vehicle["generation"] == "17CYPLUS" or vehicle["generation"] == "21MM"):
+        if vehicle["generation"] in {"17CYPLUS", "21MM", "24MM"}:
             generation = "17CYPLUS"
         elif vehicle["generation"] == "17CY":
             generation = "17CY"
+        else:
+            continue
         
         try:
             user_vehicle_status = await client.get_vehicle_status(vin, generation)

@@ -99,8 +99,25 @@ async def send_refresh_request_17cyplus(self, vin):
 
 async def remote_request_17cyplus(self, vin, command):
     """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
+    try:
+        guid = await self.auth.get_guid()
+        await self.graphql_pre_wake(guid)
+    except Exception as e:
+        _LOGGER.debug("GraphQL pre-wake before remote command failed: %s", e)
+
+    try:
+        await self.graphql_confirm_subscription(vin)
+    except Exception as e:
+        _LOGGER.debug("GraphQL confirm subscription before remote command failed: %s", e)
+
     return await self.api_post(
-        "v1/global/remote/command", {"command": command},
+        "v1/global/remote/command",
+        {
+            "command": command,
+            "guid": await self.auth.get_guid(),
+            "deviceId": self.auth.get_device_id(),
+            "vin": vin,
+        },
         {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
     )
 

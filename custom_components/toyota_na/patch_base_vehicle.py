@@ -14,6 +14,7 @@ class ApiVehicleGeneration(Enum):
     CY17 = "17CY"
     CY17PLUS = "17CYPLUS"
     MM21 = "21MM"
+    MM24 = "24MM"
     NG86 = "GR86"
     PRE17CY = "PRE17CY"
 

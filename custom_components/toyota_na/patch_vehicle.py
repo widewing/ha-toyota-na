@@ -17,6 +17,7 @@ async def get_vehicles(client: ToyotaOneClient) -> list[ToyotaVehicle]:
         if (
             ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.CY17PLUS
             or ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.MM21
+            or ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.MM24
         ):
             vehicle = SeventeenCYPlusToyotaVehicle(
                 client=client,
