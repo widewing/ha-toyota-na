@@ -32,7 +32,7 @@ async def authorize(self, username, password, otp=None):
         data = {}
         otp_brake = False
         if otp is not None:    # Retrieve callbacks if we have the otp code
-            data = self.otp_callbacks
+            data = getattr(self, "otp_callbacks", None) or {}
             
         for _ in range(15):
             if "callbacks" in data:
@@ -44,7 +44,11 @@ async def authorize(self, username, password, otp=None):
                         prompt = cb["output"][0].get("value", "")
                         if prompt == "User Name":
                             cb["input"][0]["value"] = username
-                        elif prompt == "ui_locales":
+                        elif prompt in {"ui_locales", "UI Locales"}:
+                            cb["input"][0]["value"] = "en-US"
+                        elif prompt == "Market Locale":
+                            cb["input"][0]["value"] = "US"
+                        elif prompt == "Internationalization":
                             cb["input"][0]["value"] = "en-US"
 
                     elif cb_type == "PasswordCallback":
@@ -70,9 +74,17 @@ async def authorize(self, username, password, otp=None):
 
                     elif cb_type == "TextOutputCallback":
                         msg = cb["output"][0].get("value", "")
+                        if msg in {
+                            "Enter OTP received on your Phone/Email",
+                            "Please enter verification code",
+                        }:
+                            continue
                         if msg == "Invalid OTP":
                             _LOGGER.error("Invalid OTP")
                             raise LoginError()
+                        if msg:
+                            _LOGGER.error("Toyota auth error: %s", msg)
+                            raise LoginError(msg)
 
             if otp_brake:
                 self.otp_callbacks = data # Store callback to restart auth loop when we have the otp
@@ -111,6 +123,8 @@ async def authorize(self, username, password, otp=None):
                 raise LoginError()
             return query["code"][0]
             
-async def login(self, username, password, otp):
+async def login(self, username, password, otp=None):
     authorization_code = await self.authorize(username, password, otp)
+    if isinstance(authorization_code, dict):
+        return authorization_code
     await self.request_tokens(authorization_code)

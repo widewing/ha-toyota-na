@@ -237,7 +237,13 @@ async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, e
         return vehicles
     except AuthError as e:
         try:
-            client.auth.login(entry.data["username"], entry.data["password"])
+            login_result = await client.auth.login(
+                entry.data["username"], entry.data["password"]
+            )
+            if isinstance(login_result, dict):
+                raise ConfigEntryAuthFailed(
+                    "Toyota requires MFA reauthentication"
+                ) from e
         except LoginError:
             _LOGGER.exception("Error logging in")
             raise ConfigEntryAuthFailed(e) from e
