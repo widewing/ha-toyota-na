@@ -1,63 +1,100 @@
 # ha-toyota-na
 
-## Introduction
-This is a Home Assistant integration for Toyota North America.
+Home Assistant custom integration for Toyota North America.
 
-## Stable
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Release Date](https://img.shields.io/github/release-date/widewing/ha-toyota-na?style=for-the-badge) ![GitHub Releases](https://img.shields.io/github/downloads/widewing/ha-toyota-na/latest/total?color=purple&label=%20release%20Downloads&style=for-the-badge) 
+This local repo contains additional Toyota NA fixes validated against a
+`2026 RAV4 LE` (`24MM`) and is ahead of the original upstream behavior in a few
+important areas.
+
+## Current tested status
+
+Working on the tested `24MM` vehicle:
+
+- login and MFA
+- vehicle discovery
+- door, lock, hood, trunk, and window status
+- lock / unlock
+- remote start / stop
+- hazards
+- tire pressure from the GraphQL vehicle-status feed
+
+Still dependent on Toyota-provided data quality:
+
+- some telemetry fields may remain `unknown` if Toyota does not return them
+  consistently for the vehicle/account
+
+## Important architecture note
+
+For modern `24MM` vehicles, the app's working remote-command path is GraphQL,
+not the older REST remote-command endpoint.
+
+Working command path:
+
+- GraphQL mutation `SendRemoteCommand`
+- GraphQL subscription `ReceiveRemoteCommandStatus`
+
+The older REST endpoint can still return `ONE-GLOBAL-RS-40009` and should not be
+treated as the source of truth for `24MM` command execution.
+
+The `24MM` app vehicle-status GraphQL payload also includes:
+
+- `vehicleState.tires`
+
+That is the source used here for tire pressure.
 
 ## Current features
-Certain entities and services require the Remote Subscription.
 
-Sensors:
-* Door lock status (Remote Subscription Required)
-* Window/Moonroof status (Remote Subscription Required)
-* Trunk Status (Remote Subscription Required)
-* Real time location (Remote Subscription Required)
-* Last Parked Location
-* Tire Pressure
-* Fuel Level
-* Odometer
-* Oil Status
-* Key Fob Battery Status
-* Last Update
-* Last Tire Pressure Update
-* Speed
-* EV Plug Status
-* EV Remaining Charge Time
-* EV Travel Distance
-* EV Charge Type
-* EV Charge Start Time
-* EV Charge End Time
-* EV Connector Status
-* EV Charging Status
+Certain entities and services require a Toyota remote subscription.
 
-Services:
-* Lock/Unlock Doors (Remote Subscription Required)
-* Remote Start/Stop Engine (Remote Subscription Required)
-* Hazards On/Off (Remote Subscription Required)
-* Refresh Data
+Controls / services:
+
+- lock / unlock doors
+- remote start / stop engine
+- hazards on / off
+- refresh data
+
+Vehicle status / sensors:
+
+- door lock status
+- window and moonroof status
+- trunk status
+- real-time location
+- last parked location
+- tire pressure
+- fuel level
+- odometer
+- last update
+- last tire pressure update
+- speed
+- EV plug / charging status where supported
+
 ## Installation
-### HACS
-1. Install HACS: https://hacs.xyz/docs/setup/download
-2. Search and install "Toyota (North America)" in HACS integration store
 
-### Manual installation:
-1. Download this repo by either of the following method
-- `git clone https://github.com/widewing/ha-toyota-na`
-- Download https://github.com/widewing/ha-toyota-na/archive/refs/heads/master.zip
-2. Copy or link this repo into Home Assistant "custome_components" directory
-- `ln -s ha-toyota-na/custom_components/toyota_na ~/.homeassistant/custom_components/`
+### HACS
+
+1. Install HACS: [https://hacs.xyz/docs/setup/download](https://hacs.xyz/docs/setup/download)
+2. Add this repo as a custom integration source if using this patched version.
+
+### Manual installation
+
+1. Copy `/custom_components/toyota_na/` into your Home Assistant
+   `custom_components` directory.
+2. Restart Home Assistant.
+3. Add the integration from the UI.
 
 ## Configuration
-Click "Add integration" from Home Assistant, search "Toyota (North America)", click to add.
 
-Enter your username and password, and then OTP for Toyota One App or Toyota Entune App and all set.
+Add the integration from Home Assistant and enter your Toyota username and
+password. Toyota may require an emailed OTP / MFA code during setup or later
+reauthentication.
 
-After setting up, Most information in Toyota One app should be available in Home Assistant.
-![image](https://user-images.githubusercontent.com/4755389/147372481-4d280b6e-6f61-434c-a768-f4a089f009c3.png)
+## Files worth reading
+
+- [STATUS.md](/mnt/c/Users/trevj/Projects/ha-toyota-na/STATUS.md)
+- [CHANGELOG.md](/mnt/c/Users/trevj/Projects/ha-toyota-na/CHANGELOG.md)
+- [UPSTREAM_PR_NOTES.md](/mnt/c/Users/trevj/Projects/ha-toyota-na/UPSTREAM_PR_NOTES.md)
 
 ## Credits
-Thanks @DurgNomis-drol for making the the original [Toyota Integration](https://github.com/DurgNomis-drol/ha_toyota) and bringing up the discussion thread at https://github.com/DurgNomis-drol/mytoyota/issues/7.
 
-Thanks @visualage for finding the way to authenticate headlessly.
+Thanks to the original `ha-toyota-na` project and prior Toyota integration
+work that made the initial Home Assistant support possible.

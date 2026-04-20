@@ -47,6 +47,14 @@ SUBSCRIBE_VEHICLE_STATUS = (
     " hatch { lock { status } position { status } }"
     " hood { position { status } }"
     " moonroof { position { status } }"
+    " tires {"
+    " frontLeft { psi kpa bar displayLowTirePressureWarning }"
+    " frontRight { psi kpa bar displayLowTirePressureWarning }"
+    " rearLeft { psi kpa bar displayLowTirePressureWarning }"
+    " rearRight { psi kpa bar displayLowTirePressureWarning }"
+    " spare { psi kpa bar displayLowTirePressureWarning }"
+    " lastUpdateDateTime inVehicleSettings"
+    " }"
     " trunk { lock { status } position { status } }"
     " tailgate { lock { status } position { status } }"
     " engine { running status }"
@@ -62,6 +70,14 @@ SUBSCRIBE_VEHICLE_STATUS = (
     "}"
 )
 
+SUBSCRIBE_REMOTE_COMMAND_STATUS = (
+    "subscription ReceiveRemoteCommandStatus($vin: String!) {"
+    " onPostRemoteCallback(vin: $vin) {"
+    " appRequestNo type category remoteCommandType message status vin command commandEnded"
+    " }"
+    "}"
+)
+
 
 class ToyotaWebSocketHandler:
     """Manages AppSync WebSocket connection for vehicle status push notifications."""
@@ -71,8 +87,11 @@ class ToyotaWebSocketHandler:
         self._client = client
         self._session = None
         self._ws = None
-        self._subscriptions = {}  # vin -> subscription_id
+        self._vehicle_status_subscriptions = {}  # vin -> subscription_id
+        self._remote_command_subscriptions = {}  # vin -> subscription_id
+        self._subscription_lookup = {}  # subscription_id -> (kind, vin)
         self._cached_status = {}  # vin -> latest vehicle status dict
+        self._cached_remote_command_status = {}  # vin -> latest remote command status dict
         self._confirmed_vins = set()  # VINs that have been confirmed
         self._vins = []
         self._task = None
@@ -88,6 +107,10 @@ class ToyotaWebSocketHandler:
     def get_cached_status(self, vin):
         """Get the latest cached vehicle status received via WebSocket."""
         return self._cached_status.get(vin)
+
+    def get_cached_remote_command_status(self, vin):
+        """Get the latest cached remote-command callback for a VIN."""
+        return self._cached_remote_command_status.get(vin)
 
     async def start(self, vins):
         """Start the WebSocket handler and subscribe to the given VINs."""
@@ -178,7 +201,9 @@ class ToyotaWebSocketHandler:
                 ):
                     break
         finally:
-            self._subscriptions.clear()
+            self._vehicle_status_subscriptions.clear()
+            self._remote_command_subscriptions.clear()
+            self._subscription_lookup.clear()
             if self._ws and not self._ws.closed:
                 await self._ws.close()
             if self._session and not self._session.closed:
@@ -201,16 +226,15 @@ class ToyotaWebSocketHandler:
 
         elif msg_type == "start_ack":
             sub_id = msg.get("id")
-            vin = next(
-                (v for v, sid in self._subscriptions.items() if sid == sub_id),
-                None,
-            )
+            sub_info = self._subscription_lookup.get(sub_id)
+            kind, vin = sub_info if sub_info else ("unknown", None)
             _LOGGER.debug(
-                "WebSocket: subscription active for VIN ...%s",
+                "WebSocket: %s subscription active for VIN ...%s",
+                kind,
                 (vin or "???")[-4:],
             )
-            # Per app flow: call ConfirmSubscription after subscription active
-            if vin:
+            # Per app flow: call ConfirmSubscription after vehicle-status subscription active.
+            if vin and kind == "vehicle_status":
                 try:
                     result = await self._client.graphql_confirm_subscription(vin)
                     if result is not None:
@@ -242,6 +266,18 @@ class ToyotaWebSocketHandler:
                 )
                 self._cached_status[vin] = status
 
+            remote_status = payload.get("onPostRemoteCallback")
+            if remote_status:
+                vin = remote_status.get("vin", "")
+                _LOGGER.info(
+                    "WebSocket: received remote command callback for VIN ...%s "
+                    "(command: %s, status: %s)",
+                    vin[-4:],
+                    remote_status.get("remoteCommandType", "?"),
+                    remote_status.get("status", "?"),
+                )
+                self._cached_remote_command_status[vin] = remote_status
+
         elif msg_type == "error":
             _LOGGER.debug("WebSocket error: %s", json.dumps(msg)[:500])
 
@@ -255,12 +291,13 @@ class ToyotaWebSocketHandler:
             )
 
     async def _subscribe_vin(self, vin, token, guid):
-        """Subscribe to vehicle status updates for a specific VIN."""
-        sub_id = str(uuid.uuid4())
-        self._subscriptions[vin] = sub_id
+        """Subscribe to vehicle and remote-command updates for a specific VIN."""
+        status_sub_id = str(uuid.uuid4())
+        self._vehicle_status_subscriptions[vin] = status_sub_id
+        self._subscription_lookup[status_sub_id] = ("vehicle_status", vin)
 
-        subscription = {
-            "id": sub_id,
+        status_subscription = {
+            "id": status_sub_id,
             "type": "start",
             "payload": {
                 "data": json.dumps(
@@ -281,4 +318,32 @@ class ToyotaWebSocketHandler:
                 },
             },
         }
-        await self._ws.send_json(subscription)
+        await self._ws.send_json(status_subscription)
+
+        remote_sub_id = str(uuid.uuid4())
+        self._remote_command_subscriptions[vin] = remote_sub_id
+        self._subscription_lookup[remote_sub_id] = ("remote_command", vin)
+
+        remote_subscription = {
+            "id": remote_sub_id,
+            "type": "start",
+            "payload": {
+                "data": json.dumps(
+                    {
+                        "query": SUBSCRIBE_REMOTE_COMMAND_STATUS,
+                        "variables": {"vin": vin},
+                    }
+                ),
+                "extensions": {
+                    "authorization": {
+                        "host": GRAPHQL_HOST,
+                        "x-api-key": APPSYNC_API_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "x-channel": "ONEAPP",
+                        "vin": vin,
+                        "x-guid": guid,
+                    }
+                },
+            },
+        }
+        await self._ws.send_json(remote_subscription)

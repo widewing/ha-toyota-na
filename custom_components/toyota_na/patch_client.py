@@ -7,7 +7,8 @@ API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
 GRAPHQL_ENDPOINT = "https://oa-api.telematicsct.com/graphql"
 APPSYNC_API_KEY = "da2-zgeayo2qh5eo7cj6pmdwhwugze"
 RESOLVER_API_KEY = "pypIHG015k4ABHWbcI4G0a94F7cC0JDo1OynpAsG"
-USER_AGENT = "ToyotaOneApp/3.10.0 (com.toyota.oneapp; build:3100; Android 14) okhttp/4.12.0"
+APP_VERSION = "3.10.0"
+USER_AGENT = f"ToyotaOneApp/{APP_VERSION} (com.toyota.oneapp; build:3100; Android 14) okhttp/4.12.0"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +36,13 @@ GRAPHQL_REFRESH_STATUS = """mutation RefreshVehicleStatus($vin: String!) {
   }
 }"""
 
+GRAPHQL_SEND_REMOTE_COMMAND = """mutation SendRemoteCommand($command: String!, $autoFixCommands: [String]!) {
+  executeRemoteCommand(commandInputBody: { command: $command autofixCommands: $autoFixCommands }) {
+    payload { requestNo correlationId returnCode }
+    status { messages { responseCode description detailedDescription } }
+  }
+}"""
+
 
 async def get_telemetry(self, vin, region="US", generation="17CYPLUS"):
     try:
@@ -53,7 +61,7 @@ async def _auth_headers(self):
         "X-CHANNEL": "ONEAPP",
         "X-BRAND": "T",
         "x-region": "US",
-        "X-APPVERSION": "3.1.0",
+        "X-APPVERSION": APP_VERSION,
         "X-LOCALE": "en-US",
         "User-Agent": USER_AGENT,
         "Accept": "application/json",
@@ -98,28 +106,17 @@ async def send_refresh_request_17cyplus(self, vin):
     return None
 
 async def remote_request_17cyplus(self, vin, command):
-    """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
+    """Remote command (lock, unlock, engine start, etc.) via GraphQL for 21MM+/24MM."""
     try:
         guid = await self.auth.get_guid()
         await self.graphql_pre_wake(guid)
     except Exception as e:
         _LOGGER.debug("GraphQL pre-wake before remote command failed: %s", e)
 
-    try:
-        await self.graphql_confirm_subscription(vin)
-    except Exception as e:
-        _LOGGER.debug("GraphQL confirm subscription before remote command failed: %s", e)
-
-    return await self.api_post(
-        "v1/global/remote/command",
-        {
-            "command": command,
-            "guid": await self.auth.get_guid(),
-            "deviceId": self.auth.get_device_id(),
-            "vin": vin,
-        },
-        {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
-    )
+    result = await self.graphql_send_remote_command(vin, command, [])
+    if result is None:
+        raise RuntimeError(f"Remote command rejected for VIN ending {vin[-4:]}")
+    return result
 
 async def get_vehicle_status_17cy(self, vin):
     """Legacy vehicle status."""
@@ -190,19 +187,19 @@ async def get_electric_status(self, vin, realtime_status=None):
         _LOGGER.debug("Electric status failed: %s", e)
         return None
 
-async def graphql_request(self, operation_name, query, variables):
+async def graphql_request(self, operation_name, query, variables, vin_header=""):
     """Make a GraphQL request to the AppSync endpoint."""
     headers = {
         "Content-Type": "application/json",
         "x-api-key": APPSYNC_API_KEY,
         "x-resolver-api-key": RESOLVER_API_KEY,
         "Authorization": "Bearer " + await self.auth.get_access_token(),
-        "vin": variables.get("vin", ""),
+        "vin": vin_header or variables.get("vin", ""),
         "x-guid": await self.auth.get_guid(),
         "x-deviceid": self.auth.get_device_id(),
         "X-APPBRAND": "T",
         "x-channel": "ONEAPP",
-        "X-APPVERSION": "3.1.0",
+        "X-APPVERSION": APP_VERSION,
         "X-OSNAME": "Android",
         "X-OSVERSION": "14",
         "X-LOCALE": "en-US",
@@ -240,6 +237,18 @@ async def graphql_confirm_subscription(self, vin):
 async def graphql_refresh_status(self, vin):
     """Request vehicle to upload fresh status via GraphQL."""
     return await self.graphql_request("RefreshVehicleStatus", GRAPHQL_REFRESH_STATUS, {"vin": vin})
+
+
+async def graphql_send_remote_command(self, vin, command, auto_fix_commands=None):
+    """Execute a remote command using the app's GraphQL command path."""
+    if auto_fix_commands is None:
+        auto_fix_commands = []
+    return await self.graphql_request(
+        "SendRemoteCommand",
+        GRAPHQL_SEND_REMOTE_COMMAND,
+        {"command": command, "autoFixCommands": auto_fix_commands},
+        vin_header=vin,
+    )
 
 
 async def api_request(self, method, endpoint, header_params=None, **kwargs):

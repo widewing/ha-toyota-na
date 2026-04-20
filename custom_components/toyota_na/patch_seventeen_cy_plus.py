@@ -242,6 +242,24 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             return False
         return values[1].get("value", "").lower() == "locked"
 
+    @staticmethod
+    def _normalize_closed_status(value):
+        normalized = (value or "").lower()
+        if normalized in {"closed", "close"}:
+            return True
+        if normalized in {"open", "opened", "ajar"}:
+            return False
+        return None
+
+    @staticmethod
+    def _normalize_locked_status(value):
+        normalized = (value or "").lower()
+        if normalized in {"locked", "lock"}:
+            return True
+        if normalized in {"unlocked", "unlock"}:
+            return False
+        return None
+
     def _parse_vehicle_status(self, vehicle_status: dict) -> None:
         if not vehicle_status:
             return
@@ -272,20 +290,23 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     values = section.get("values", [])
                     if not values:
                         continue
-                    first_val = values[0].get("value", "").lower()
-                    if first_val not in ("closed", "open", "opened", "locked", "unlocked"):
-                        continue
+                    closed_state = self._normalize_closed_status(values[0].get("value"))
                     # CLOSED is always the first value entry. So we can use it to determine which subtype to instantiate
                     if len(values) == 1:
+                        if closed_state is None:
+                            continue
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaOpening(self._isClosed(section))
+                        ] = ToyotaOpening(closed=closed_state)
                     elif len(values) >= 2:
+                        locked_state = self._normalize_locked_status(values[1].get("value"))
+                        if closed_state is None or locked_state is None:
+                            continue
                         self._features[
                             self._vehicle_status_category_map[key]
                         ] = ToyotaLockableOpening(
-                            closed=self._isClosed(section),
-                            locked=self._isLocked(section),
+                            closed=closed_state,
+                            locked=locked_state,
                         )
 
     #
@@ -305,6 +326,24 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "rearDriverSide": VehicleFeatures.RearDriverWindow,
         "rearPassengerSide": VehicleFeatures.RearPassengerWindow,
     }
+
+    _graphql_tire_map = {
+        "frontLeft": VehicleFeatures.FrontDriverTire,
+        "frontRight": VehicleFeatures.FrontPassengerTire,
+        "rearLeft": VehicleFeatures.RearDriverTire,
+        "rearRight": VehicleFeatures.RearPassengerTire,
+        "spare": VehicleFeatures.SpareTirePressure,
+    }
+
+    @staticmethod
+    def _graphql_tire_unit_and_value(tire):
+        if not tire:
+            return None, None
+        for unit in ("psi", "kpa", "bar"):
+            value = tire.get(unit)
+            if value is not None:
+                return value, unit
+        return None, None
 
     def _parse_graphql_vehicle_status(self, status: dict) -> None:
         """Parse GraphQL GetVehicleStatus response into vehicle features."""
@@ -330,9 +369,13 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 if door:
                     lock_status = (door.get("lock") or {}).get("status", "").lower()
                     pos_status = (door.get("position") or {}).get("status", "").lower()
+                    closed_state = self._normalize_closed_status(pos_status)
+                    locked_state = self._normalize_locked_status(lock_status)
+                    if closed_state is None or locked_state is None:
+                        continue
                     self._features[feature] = ToyotaLockableOpening(
-                        closed=(pos_status == "closed"),
-                        locked=(lock_status == "locked"),
+                        closed=closed_state,
+                        locked=locked_state,
                     )
 
         # Windows (position only)
@@ -342,7 +385,10 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 window = windows.get(win_key)
                 if window:
                     pos_status = ((window.get("position") or {}).get("status", "")).lower()
-                    self._features[feature] = ToyotaOpening(closed=(pos_status == "closed"))
+                    closed_state = self._normalize_closed_status(pos_status)
+                    if closed_state is None:
+                        continue
+                    self._features[feature] = ToyotaOpening(closed=closed_state)
 
         # Hatch / Trunk / Tailgate -> mapped to VehicleFeatures.Trunk
         for opening_key in ("hatch", "trunk", "tailgate"):
@@ -354,13 +400,20 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     lock_status = ((lock_obj or {}).get("status", "")).lower()
                     pos_status = ((pos_obj or {}).get("status", "")).lower()
                     if lock_obj:
+                        closed_state = self._normalize_closed_status(pos_status)
+                        locked_state = self._normalize_locked_status(lock_status)
+                        if closed_state is None or locked_state is None:
+                            continue
                         self._features[VehicleFeatures.Trunk] = ToyotaLockableOpening(
-                            closed=(pos_status == "closed"),
-                            locked=(lock_status == "locked"),
+                            closed=closed_state,
+                            locked=locked_state,
                         )
                     else:
+                        closed_state = self._normalize_closed_status(pos_status)
+                        if closed_state is None:
+                            continue
                         self._features[VehicleFeatures.Trunk] = ToyotaOpening(
-                            closed=(pos_status == "closed")
+                            closed=closed_state
                         )
                     break  # use first available
 
@@ -368,13 +421,17 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         hood = vehicle_state.get("hood")
         if hood:
             pos_status = ((hood.get("position") or {}).get("status", "")).lower()
-            self._features[VehicleFeatures.Hood] = ToyotaOpening(closed=(pos_status == "closed"))
+            closed_state = self._normalize_closed_status(pos_status)
+            if closed_state is not None:
+                self._features[VehicleFeatures.Hood] = ToyotaOpening(closed=closed_state)
 
         # Moonroof (position only)
         moonroof = vehicle_state.get("moonroof")
         if moonroof:
             pos_status = ((moonroof.get("position") or {}).get("status", "")).lower()
-            self._features[VehicleFeatures.Moonroof] = ToyotaOpening(closed=(pos_status == "closed"))
+            closed_state = self._normalize_closed_status(pos_status)
+            if closed_state is not None:
+                self._features[VehicleFeatures.Moonroof] = ToyotaOpening(closed=closed_state)
 
         # Engine
         engine = vehicle_state.get("engine")
@@ -386,6 +443,31 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     on=bool(running),
                     timer=None,
                 )
+
+        # Tire pressures
+        tires = vehicle_state.get("tires")
+        if tires:
+            for tire_key, feature in self._graphql_tire_map.items():
+                tire = tires.get(tire_key)
+                value, unit = self._graphql_tire_unit_and_value(tire)
+                if value is not None:
+                    self._features[feature] = ToyotaNumeric(value, unit)
+
+            tire_timestamp = tires.get("lastUpdateDateTime")
+            if tire_timestamp:
+                try:
+                    timestamp = datetime.datetime.strptime(
+                        tire_timestamp, "%Y-%m-%dT%H:%M:%SZ"
+                    ).replace(tzinfo=datetime.timezone.utc).timestamp()
+                    self._features[VehicleFeatures.LastTirePressureTimeStamp] = (
+                        ToyotaNumeric(timestamp, "")
+                    )
+                except ValueError:
+                    _LOGGER.debug(
+                        "Unexpected tire timestamp format for VIN %s: %s",
+                        self._vin[-4:],
+                        tire_timestamp,
+                    )
 
         # Telemetry from GraphQL response
         telemetry = status.get("telemetry")

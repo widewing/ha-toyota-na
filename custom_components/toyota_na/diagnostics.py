@@ -36,6 +36,7 @@ async def async_get_config_entry_diagnostics(
     client: ToyotaOneClient = hass.data[DOMAIN][config_entry.entry_id][
         "toyota_na_client"
     ]
+    ws_handler = hass.data[DOMAIN][config_entry.entry_id].get("ws_handler")
 
     # We don't directly expose this from the vehicle api abstraction, but it's critical to dump this in diagnostics for debugging
     user_vehicle_list = await client.get_user_vehicle_list()
@@ -49,6 +50,8 @@ async def async_get_config_entry_diagnostics(
     user_telemetry = ""
     user_engine_status = ""
     user_electric_status = ""
+    websocket_status = []
+    websocket_remote_command_status = []
 
     for (i, vehicle) in enumerate(user_vehicle_list):
         vin=vehicle["vin"]
@@ -84,6 +87,12 @@ async def async_get_config_entry_diagnostics(
         telemetry.append(user_telemetry)
         engine_status.append(user_engine_status)
         electric_status.append(user_electric_status)
+        if ws_handler:
+            websocket_status.append(ws_handler.get_cached_status(vin))
+            if hasattr(ws_handler, "get_cached_remote_command_status"):
+                websocket_remote_command_status.append(
+                    ws_handler.get_cached_remote_command_status(vin)
+                )
 
     return async_redact_data(
         {
@@ -93,6 +102,8 @@ async def async_get_config_entry_diagnostics(
             "telemetry": {"data": telemetry},
             "engine_status": {"data": engine_status},
             "electric_status": {"data": electric_status},
+            "websocket_status": {"data": websocket_status},
+            "websocket_remote_command_status": {"data": websocket_remote_command_status},
         },
         TO_REDACT,
     )

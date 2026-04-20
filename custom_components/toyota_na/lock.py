@@ -49,6 +49,7 @@ async def async_setup_entry(
 class ToyotaLock(ToyotaNABaseEntity, LockEntity):
 
     _state_changing = False
+    _last_known_locked = None
 
     def __init__(
         self,
@@ -64,18 +65,25 @@ class ToyotaLock(ToyotaNABaseEntity, LockEntity):
     @property
     def is_locked(self):
         if self.vehicle is None:
-            return None
+            return self._last_known_locked
 
         all_locks = [
             feature
-            for feature in self.vehicle.features.values()
+            for feat_key, feature in self.vehicle.features.items()
             if isinstance(feature, ToyotaLockableOpening)
+            and feat_key in {
+                VehicleFeatures.FrontDriverDoor,
+                VehicleFeatures.FrontPassengerDoor,
+                VehicleFeatures.RearDriverDoor,
+                VehicleFeatures.RearPassengerDoor,
+            }
         ]
 
         if not all_locks:
-            return None
+            return self._last_known_locked
 
-        return all(lock.locked for lock in all_locks)
+        self._last_known_locked = all(lock.locked for lock in all_locks)
+        return self._last_known_locked
 
     @property
     def is_locking(self):
@@ -97,6 +105,10 @@ class ToyotaLock(ToyotaNABaseEntity, LockEntity):
         """Set the lock state via the provided command string."""
         if self.vehicle is not None:
             self._state_changing = True
+            if command == DOOR_LOCK:
+                self._last_known_locked = True
+            elif command == DOOR_UNLOCK:
+                self._last_known_locked = False
             self.async_write_ha_state()
             await self.vehicle.send_command(COMMAND_MAP[command])
             self.hass.async_create_task(self._background_refresh())

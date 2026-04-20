@@ -24,6 +24,7 @@ from .patch_client import (
     graphql_pre_wake,
     graphql_confirm_subscription,
     graphql_refresh_status,
+    graphql_send_remote_command,
 )
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
@@ -41,6 +42,7 @@ ToyotaOneClient.graphql_request = graphql_request
 ToyotaOneClient.graphql_pre_wake = graphql_pre_wake
 ToyotaOneClient.graphql_confirm_subscription = graphql_confirm_subscription
 ToyotaOneClient.graphql_refresh_status = graphql_refresh_status
+ToyotaOneClient.graphql_send_remote_command = graphql_send_remote_command
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
@@ -93,7 +95,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor"]
+PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
     @service.verify_domain_control(DOMAIN)
