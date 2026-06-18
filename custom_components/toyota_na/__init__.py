@@ -227,12 +227,18 @@ async def update_vehicles_status(hass: HomeAssistant, client: ToyotaOneClient, e
                 )
             if need_refresh and vehicle.subscribed:
                 try:
+                    _LOGGER.info(
+                        "Requesting vehicle refresh for %s %s",
+                        vehicle.model_year,
+                        vehicle.model_name,
+                    )
                     await vehicle.poll_vehicle_refresh()
                 except Exception as e:
                     _LOGGER.warning("Vehicle refresh failed (%s), continuing without refresh", e)
             vehicles.append(vehicle)
         entry_data = dict(entry.data)
-        entry_data["last_refreshed_at"] = datetime.utcnow().timestamp()
+        if need_refresh:
+            entry_data["last_refreshed_at"] = datetime.utcnow().timestamp()
         hass.config_entries.async_update_entry(entry, data=entry_data)
         return vehicles
     except AuthError as e:
