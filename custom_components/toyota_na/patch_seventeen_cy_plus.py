@@ -21,6 +21,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     _has_remote_subscription = False
     _has_electric = False
     _last_vehicle_status = None  # persist last successful status across polls
+    _last_vehicle_status_timestamp = None # parsed from "occuranceDate"
 
     _command_map = {
         RemoteRequestCommand.DoorLock: "door-lock",
@@ -94,6 +95,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             region,
             ApiVehicleGeneration.CY17PLUS,
         )
+
+    @staticmethod
+    def _parse_timestamp(value: str | None) -> datetime.datetime | None:
+        if not value:
+            return None
+        return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z")
 
     _last_graphql_status = None  # persist last successful GraphQL status
 
@@ -255,6 +262,8 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         if "vehicleStatus" not in vehicle_status or vehicle_status["vehicleStatus"] is None:
             return
 
+        self._last_vehicle_status_timestamp = self._parse_timestamp(vehicle_status.get("occurrenceDate"))
+
         for category in vehicle_status["vehicleStatus"]:
             if not category or "sections" not in category:
                 continue
@@ -413,19 +422,28 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     def _parse_telemetry(self, telemetry: dict) -> None:
         if not telemetry:
             return
-            
+
+        telemetry_timestamp = self._parse_timestamp(telemetry.get("lastTimestamp"))
+        if telemetry_timestamp:
+            self._features[VehicleFeatures.LastTimeStamp] = ToyotaNumeric(telemetry_timestamp.timestamp(), "")
+
+        telemetry_is_newer = (
+            self._last_vehicle_status_timestamp is None
+            or (
+                telemetry_timestamp is not None
+                and telemetry_timestamp > self._last_vehicle_status_timestamp
+            )
+        )
+
         for key, value in telemetry.items():
             if value is None:
                 continue
 
-            # last time stamp is a primitive
-            if key == "lastTimestamp":
-                self._features[VehicleFeatures.LastTimeStamp] = ToyotaNumeric(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp(), "")
-                continue
-
             # tire pressure time stamp is a primitive
             if key == "tirePressureTimestamp":
-                self._features[VehicleFeatures.LastTirePressureTimeStamp] = ToyotaNumeric(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp(), "")
+                self._features[VehicleFeatures.LastTirePressureTimeStamp] = ToyotaNumeric(
+                    self._parse_timestamp(value).timestamp(), ""
+                )
                 continue
                 
             # fuel level is a primitive
@@ -442,6 +460,8 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
             if "Window" in key or "Roof" in key:
                 if value not in (1, 2):
+                    continue
+                if not telemetry_is_newer:
                     continue
                 self._features[
                     self._vehicle_telemetry_map.get(key, key)
