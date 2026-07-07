@@ -370,7 +370,7 @@ SENSORS = [
         "electric": True,
     },
     {
-        "state_class": SensorStateClass.MEASUREMENT,
+        "state_class": None,
         "icon": "mdi:ev-plug-type1",
         "feature": VehicleFeatures.ConnectorStatus,
         "name": "Connector Status",

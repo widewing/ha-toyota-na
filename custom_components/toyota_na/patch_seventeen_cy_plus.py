@@ -223,7 +223,13 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         self._features[VehicleFeatures.RemainingChargeTime] = ToyotaNumeric(chargeInfo.get("remainingChargeTime"), "min")
         self._features[VehicleFeatures.EvTravelableDistance] = ToyotaNumeric(chargeInfo.get("evTravelableDistance"), "")
         self._features[VehicleFeatures.ChargeType] = ToyotaNumeric(chargeInfo.get("chargeType"), "")
-        self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(chargeInfo.get("connectorStatus"), "")
+        raw_status = chargeInfo.get("connectorStatus")
+        connector_status = {
+            2: "Disconnected",
+            4: "Unlocked",
+            5: "Locked",
+        }.get(raw_status if isinstance(raw_status, int) else int(raw_status) if raw_status is not None and str(raw_status).isdigit() else raw_status, raw_status)
+        self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(connector_status, "")
         self._features[VehicleFeatures.ChargingStatus] = ToyotaOpening(chargeInfo.get("connectorStatus") != 5)
 
     #
