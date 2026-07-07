@@ -2,7 +2,7 @@ from toyota_na.vehicle.base_vehicle import VehicleFeatures
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import PERCENTAGE, UnitOfPressure
+from homeassistant.const import PERCENTAGE, UnitOfPressure, UnitOfTime
 
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
 
@@ -345,7 +345,7 @@ SENSORS = [
         "icon": "mdi:clock-outline",
         "feature": VehicleFeatures.RemainingChargeTime,
         "name": "Remaining Charge Time",
-        "unit": "",
+        "unit": UnitOfTime.MINUTES,
         "subscription": True,
         "electric": True,
     },
