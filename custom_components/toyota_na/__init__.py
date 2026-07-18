@@ -24,6 +24,9 @@ from .patch_client import (
     graphql_pre_wake,
     graphql_confirm_subscription,
     graphql_refresh_status,
+    graphql_get_vehicle_status,
+    graphql_send_remote_command,
+    remote_request_24mm,
 )
 ToyotaOneClient.get_electric_realtime_status = get_electric_realtime_status
 ToyotaOneClient.get_electric_status = get_electric_status
@@ -41,6 +44,9 @@ ToyotaOneClient.graphql_request = graphql_request
 ToyotaOneClient.graphql_pre_wake = graphql_pre_wake
 ToyotaOneClient.graphql_confirm_subscription = graphql_confirm_subscription
 ToyotaOneClient.graphql_refresh_status = graphql_refresh_status
+ToyotaOneClient.graphql_get_vehicle_status = graphql_get_vehicle_status
+ToyotaOneClient.graphql_send_remote_command = graphql_send_remote_command
+ToyotaOneClient.remote_request_24mm = remote_request_24mm
 
 # Patch base_vehicle
 import toyota_na.vehicle.base_vehicle
@@ -188,9 +194,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # Start WebSocket handler for vehicle status push notifications (21MM+)
     ws_handler = ToyotaWebSocketHandler(client)
-    vins = [v.vin for v in coordinator.data if v.subscribed] if coordinator.data else []
-    if vins:
-        await ws_handler.start(vins)
+    subscribed_vehicles = (
+        [vehicle for vehicle in coordinator.data if vehicle.subscribed]
+        if coordinator.data
+        else []
+    )
+    if subscribed_vehicles:
+        await ws_handler.start(subscribed_vehicles)
     client._ws_handler = ws_handler
 
     hass.data[DOMAIN][entry.entry_id] = {

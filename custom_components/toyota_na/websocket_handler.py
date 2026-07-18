@@ -1,8 +1,8 @@
 """AWS AppSync WebSocket handler for Toyota vehicle status subscriptions.
 
-The Toyota app (v3.1.0+) uses AppSync WebSocket subscriptions exclusively
-for door/lock/window/hood/trunk status on 21MM+ vehicles. The HTTP
-GetVehicleStatus query returns 'vehicle not found' by design.
+The Toyota app uses AppSync WebSocket subscriptions for later status changes
+on newer vehicles. An initial HTTP GetVehicleStatus query is still required
+because a subscription is not guaranteed to replay the current state.
 
 Flow (per APK analysis of SubscribeVehicleStatusDefaultRepo):
 1. Connect WebSocket to AppSync realtime endpoint
@@ -58,6 +58,27 @@ SUBSCRIBE_VEHICLE_STATUS = (
     " fugage { unit value }"
     " range { unit value }"
     " }"
+    " electric {"
+    " lastUpdateDateTime"
+    " battery {"
+    " chargeRemainingAmount { unit value }"
+    " powerSupplyPossibleTime { unit value }"
+    " travelableDistance { unit value }"
+    " travelableDistanceAC { unit value }"
+    " plugInEnergy { unit value }"
+    " stateOfChargeDisplay { unit value }"
+    " }"
+    " charging {"
+    " chargeType chargingStatus chargingState"
+    " remainingChargeTime { unit value }"
+    " remainingChargeTimeTo80Percent { unit value }"
+    " connector { status plugInInfo plugStatus }"
+    " }"
+    " gasoline {"
+    " powerSupplyPossibleTime { unit value }"
+    " travelableDistance { unit value }"
+    " }"
+    " }"
     " }"
     "}"
 )
@@ -75,6 +96,7 @@ class ToyotaWebSocketHandler:
         self._cached_status = {}  # vin -> latest vehicle status dict
         self._confirmed_vins = set()  # VINs that have been confirmed
         self._vins = []
+        self._vehicle_metadata = {}
         self._task = None
         self._retry_task = None
         self._running = False
@@ -89,10 +111,17 @@ class ToyotaWebSocketHandler:
         """Get the latest cached vehicle status received via WebSocket."""
         return self._cached_status.get(vin)
 
-    async def start(self, vins):
-        """Start the WebSocket handler and subscribe to the given VINs."""
+    async def start(self, vehicles):
+        """Start the WebSocket handler for subscribed vehicle objects."""
         self._running = True
-        self._vins = list(vins)
+        self._vins = [vehicle.vin for vehicle in vehicles]
+        self._vehicle_metadata = {
+            vehicle.vin: {
+                "backdoor_type": getattr(vehicle, "_backdoor_type", "hatch"),
+                "region": getattr(vehicle, "_region", "US"),
+            }
+            for vehicle in vehicles
+        }
         if self._vins:
             self._task = asyncio.ensure_future(self._run_loop())
             _LOGGER.debug("WebSocket handler started for %d VINs", len(self._vins))
@@ -144,6 +173,8 @@ class ToyotaWebSocketHandler:
             "x-api-key": APPSYNC_API_KEY,
             "Authorization": f"Bearer {token}",
             "x-channel": "ONEAPP",
+            "vin": self._vins[0] if self._vins else "",
+            "x-guid": guid,
         }
         header_b64 = base64.b64encode(
             json.dumps(auth_header).encode()
@@ -212,7 +243,12 @@ class ToyotaWebSocketHandler:
             # Per app flow: call ConfirmSubscription after subscription active
             if vin:
                 try:
-                    result = await self._client.graphql_confirm_subscription(vin)
+                    metadata = self._vehicle_metadata.get(vin, {})
+                    result = await self._client.graphql_confirm_subscription(
+                        vin,
+                        metadata.get("backdoor_type", "hatch"),
+                        metadata.get("region", "US"),
+                    )
                     if result is not None:
                         _LOGGER.debug(
                             "WebSocket: subscription confirmed for VIN ...%s",
