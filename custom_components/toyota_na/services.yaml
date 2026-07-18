@@ -38,6 +38,60 @@ hazards_off:
       selector:
         device:
           integration: toyota_na
+windows_open:
+  description: Open all remotely controllable power windows.
+  fields:
+    vehicle:
+      description: Device (vehicle) whose windows should open.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+windows_close:
+  description: Close all remotely controllable power windows.
+  fields:
+    vehicle:
+      description: Device (vehicle) whose windows should close.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+charge_start:
+  description: Start immediate charging on a supported Toyota EV or PHEV.
+  fields:
+    vehicle:
+      description: Device (vehicle) that should start charging.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+charge_stop:
+  description: Stop charging on a supported Toyota EV or PHEV.
+  fields:
+    vehicle:
+      description: Device (vehicle) that should stop charging.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+sound_horn:
+  description: Sound the vehicle horn.
+  fields:
+    vehicle:
+      description: Device (vehicle) whose horn should sound.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
+buzzer_warning:
+  description: Sound the vehicle warning buzzer.
+  fields:
+    vehicle:
+      description: Device (vehicle) whose warning buzzer should sound.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
 door_lock:
   description: Lock your Toyota vehicle.
   fields:

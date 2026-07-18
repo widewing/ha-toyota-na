@@ -80,6 +80,12 @@ class RemoteRequestCommand(Enum):
     EngineStop = auto()
     HazardsOn = auto()
     HazardsOff = auto()
+    PowerWindowsOpen = auto()
+    PowerWindowsClose = auto()
+    ChargeStart = auto()
+    ChargeStop = auto()
+    SoundHorn = auto()
+    BuzzerWarning = auto()
     Refresh = auto()
 
 

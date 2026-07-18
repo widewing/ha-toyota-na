@@ -91,6 +91,12 @@ from .const import (
     ENGINE_STOP,
     HAZARDS_ON,
     HAZARDS_OFF,
+    WINDOWS_OPEN,
+    WINDOWS_CLOSE,
+    CHARGE_START,
+    CHARGE_STOP,
+    SOUND_HORN,
+    BUZZER_WARNING,
     DOOR_LOCK,
     DOOR_UNLOCK,
     REFRESH,
@@ -99,7 +105,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "device_tracker", "lock", "sensor", "switch"]
+PLATFORMS = ["binary_sensor", "button", "cover", "device_tracker", "lock", "sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
     @service.verify_domain_control(DOMAIN)
@@ -150,7 +156,16 @@ async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
                         await asyncio.sleep(10)
                         await coordinator.async_request_refresh()
                     elif vehicle.vin == vin and vehicle.subscribed:
-                        await vehicle.send_command(COMMAND_MAP[remote_action])
+                        command = COMMAND_MAP[remote_action]
+                        vehicle_command_map = getattr(vehicle, "_command_map", {})
+                        if command not in vehicle_command_map:
+                            _LOGGER.warning(
+                                "Remote action %s is not supported for %s vehicles",
+                                remote_action,
+                                getattr(vehicle.generation, "value", vehicle.generation),
+                            )
+                            break
+                        await vehicle.send_command(command)
                         break
 
                 _LOGGER.info("Handling service call %s for %s ", remote_action, vin)
@@ -161,6 +176,12 @@ async def async_setup(hass: HomeAssistant, _processed_config) -> bool:
     hass.services.async_register(DOMAIN, ENGINE_STOP, async_service_handle)
     hass.services.async_register(DOMAIN, HAZARDS_ON, async_service_handle)
     hass.services.async_register(DOMAIN, HAZARDS_OFF, async_service_handle)
+    hass.services.async_register(DOMAIN, WINDOWS_OPEN, async_service_handle)
+    hass.services.async_register(DOMAIN, WINDOWS_CLOSE, async_service_handle)
+    hass.services.async_register(DOMAIN, CHARGE_START, async_service_handle)
+    hass.services.async_register(DOMAIN, CHARGE_STOP, async_service_handle)
+    hass.services.async_register(DOMAIN, SOUND_HORN, async_service_handle)
+    hass.services.async_register(DOMAIN, BUZZER_WARNING, async_service_handle)
     hass.services.async_register(DOMAIN, DOOR_LOCK, async_service_handle)
     hass.services.async_register(DOMAIN, DOOR_UNLOCK, async_service_handle)
     hass.services.async_register(DOMAIN, REFRESH, async_service_handle)

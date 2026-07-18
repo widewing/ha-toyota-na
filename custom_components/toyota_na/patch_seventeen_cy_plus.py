@@ -29,6 +29,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         RemoteRequestCommand.EngineStop: "engine-stop",
         RemoteRequestCommand.HazardsOn: "hazard-on",
         RemoteRequestCommand.HazardsOff: "hazard-off",
+        RemoteRequestCommand.PowerWindowsOpen: "power-window-open",
+        RemoteRequestCommand.PowerWindowsClose: "power-window-close",
+        RemoteRequestCommand.ChargeStart: "immediate-charge",
+        RemoteRequestCommand.ChargeStop: "charge-stop",
+        RemoteRequestCommand.SoundHorn: "sound-horn",
+        RemoteRequestCommand.BuzzerWarning: "buzzer-warning",
         RemoteRequestCommand.Refresh: "refresh",
     }
 
@@ -333,6 +339,14 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "rearPassengerSide": VehicleFeatures.RearPassengerWindow,
     }
 
+    _graphql_tire_map = {
+        "frontLeft": VehicleFeatures.FrontDriverTire,
+        "frontRight": VehicleFeatures.FrontPassengerTire,
+        "rearLeft": VehicleFeatures.RearDriverTire,
+        "rearRight": VehicleFeatures.RearPassengerTire,
+        "spare": VehicleFeatures.SpareTirePressure,
+    }
+
     def _parse_graphql_vehicle_status(self, status: dict) -> None:
         """Parse GraphQL GetVehicleStatus response into vehicle features."""
         if not status:
@@ -380,6 +394,29 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     )
                     if closed is not None:
                         self._features[feature] = ToyotaOpening(closed=closed)
+
+        # Tire pressures. Toyota currently returns scalar psi/kpa/bar fields,
+        # while some response variants wrap the value and unit in an object.
+        tires = vehicle_state.get("tires") or {}
+        for tire_key, feature in self._graphql_tire_map.items():
+            tire = tires.get(tire_key) or {}
+            for pressure_key, default_unit in (
+                ("psi", "psi"),
+                ("kpa", "kPa"),
+                ("bar", "bar"),
+            ):
+                pressure = tire.get(pressure_key)
+                if pressure is None:
+                    continue
+                if isinstance(pressure, dict):
+                    value = pressure.get("value")
+                    unit = pressure.get("unit") or default_unit
+                else:
+                    value = pressure
+                    unit = default_unit
+                if value is not None:
+                    self._features[feature] = ToyotaNumeric(value, unit)
+                    break
 
         # Hatch / Trunk / Tailgate -> mapped to VehicleFeatures.Trunk
         for opening_key in ("hatch", "trunk", "tailgate"):

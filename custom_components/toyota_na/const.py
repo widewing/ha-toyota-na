@@ -1,8 +1,8 @@
 from toyota_na.vehicle.base_vehicle import VehicleFeatures
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import PERCENTAGE, UnitOfPressure
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import PERCENTAGE
 
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
 
@@ -15,6 +15,12 @@ ENGINE_START = "engine_start"
 ENGINE_STOP = "engine_stop"
 HAZARDS_ON = "hazards_on"
 HAZARDS_OFF = "hazards_off"
+WINDOWS_OPEN = "windows_open"
+WINDOWS_CLOSE = "windows_close"
+CHARGE_START = "charge_start"
+CHARGE_STOP = "charge_stop"
+SOUND_HORN = "sound_horn"
+BUZZER_WARNING = "buzzer_warning"
 REFRESH = "refresh"
 
 UPDATE_INTERVAL = 600
@@ -27,6 +33,12 @@ COMMAND_MAP = {
     ENGINE_STOP: RemoteRequestCommand.EngineStop,
     HAZARDS_ON: RemoteRequestCommand.HazardsOn,
     HAZARDS_OFF: RemoteRequestCommand.HazardsOff,
+    WINDOWS_OPEN: RemoteRequestCommand.PowerWindowsOpen,
+    WINDOWS_CLOSE: RemoteRequestCommand.PowerWindowsClose,
+    CHARGE_START: RemoteRequestCommand.ChargeStart,
+    CHARGE_STOP: RemoteRequestCommand.ChargeStop,
+    SOUND_HORN: RemoteRequestCommand.SoundHorn,
+    BUZZER_WARNING: RemoteRequestCommand.BuzzerWarning,
     REFRESH: RemoteRequestCommand.Refresh,
 }
 
@@ -217,46 +229,51 @@ SENSORS = [
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.PRESSURE,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.FrontDriverTire,
         "name": "Front Driver Tire",
-        "unit": UnitOfPressure.PSI,
+        "unit": "PRESSURE_UNIT",
         "subscription": False,
         "electric": False,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.PRESSURE,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.FrontPassengerTire,
         "name": "Front Passenger Tire",
-        "unit": UnitOfPressure.PSI,
+        "unit": "PRESSURE_UNIT",
         "subscription": False,
         "electric": False,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.PRESSURE,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.RearDriverTire,
         "name": "Rear Driver Tire",
-        "unit": UnitOfPressure.PSI,
+        "unit": "PRESSURE_UNIT",
         "subscription": False,
         "electric": False,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.PRESSURE,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.RearPassengerTire,
         "name": "Rear Passenger Tire",
-        "unit": UnitOfPressure.PSI,
+        "unit": "PRESSURE_UNIT",
         "subscription": False,
         "electric": False,
     },
     {
         "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.PRESSURE,
         "icon": "mdi:car-tire-alert",
         "feature": VehicleFeatures.SpareTirePressure,
         "name": "Spare Tire Pressure",
-        "unit": UnitOfPressure.PSI,
+        "unit": "PRESSURE_UNIT",
         "subscription": False,
         "electric": False,
     },

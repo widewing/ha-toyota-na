@@ -20,6 +20,19 @@
         "lock": {"status": "unlock"},
         "position": {"status": "open"}
       }
+    },
+    "windows": {
+      "driverSide": {"position": {"status": "close"}},
+      "passengerSide": {"position": {"status": "close"}},
+      "rearDriverSide": {"position": {"status": "open"}},
+      "rearPassengerSide": {"position": {"status": "close"}}
+    },
+    "tires": {
+      "frontLeft": {"psi": 35.1},
+      "frontRight": {"psi": 35.3},
+      "rearLeft": {"psi": 34.8},
+      "rearRight": {"psi": 35.0},
+      "spare": {"kpa": {"value": 240, "unit": "kPa"}}
     }
   },
   "electric": {

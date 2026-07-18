@@ -26,6 +26,12 @@ class RemoteRequestCommand(Enum):
     EngineStop = auto()
     HazardsOn = auto()
     HazardsOff = auto()
+    PowerWindowsOpen = auto()
+    PowerWindowsClose = auto()
+    ChargeStart = auto()
+    ChargeStop = auto()
+    SoundHorn = auto()
+    BuzzerWarning = auto()
     Refresh = auto()
 
 
@@ -220,6 +226,36 @@ class TwentyFourMMStatusParserTests(unittest.TestCase):
         self.assertEqual(100, vehicle._features[VehicleFeatures.ChargeLevel].value)
         self.assertEqual(48, vehicle._features[VehicleFeatures.ChargeDistance].value)
         self.assertFalse(vehicle._features[VehicleFeatures.ChargingStatus].closed)
+        self.assertEqual(
+            (35.1, "psi"),
+            (
+                vehicle._features[VehicleFeatures.FrontDriverTire].value,
+                vehicle._features[VehicleFeatures.FrontDriverTire].unit,
+            ),
+        )
+        self.assertEqual(
+            (240, "kPa"),
+            (
+                vehicle._features[VehicleFeatures.SpareTirePressure].value,
+                vehicle._features[VehicleFeatures.SpareTirePressure].unit,
+            ),
+        )
+
+    def test_current_command_names_match_toyota_companion(self):
+        command_map = parser_module.SeventeenCYPlusToyotaVehicle._command_map
+
+        self.assertEqual(
+            "power-window-open", command_map[RemoteRequestCommand.PowerWindowsOpen]
+        )
+        self.assertEqual(
+            "power-window-close", command_map[RemoteRequestCommand.PowerWindowsClose]
+        )
+        self.assertEqual("immediate-charge", command_map[RemoteRequestCommand.ChargeStart])
+        self.assertEqual("charge-stop", command_map[RemoteRequestCommand.ChargeStop])
+        self.assertEqual("sound-horn", command_map[RemoteRequestCommand.SoundHorn])
+        self.assertEqual(
+            "buzzer-warning", command_map[RemoteRequestCommand.BuzzerWarning]
+        )
 
 
 if __name__ == "__main__":

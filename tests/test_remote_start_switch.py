@@ -15,6 +15,7 @@ COMPONENT = ROOT / "custom_components/toyota_na"
 
 class VehicleFeatures(Enum):
     RemoteStartStatus = auto()
+    ChargingStatus = auto()
 
 
 class ToyotaVehicle:
@@ -28,6 +29,11 @@ class ToyotaRemoteStart:
         self.time_left = 7
         self.start_time = "start"
         self.timer = 10
+
+
+class ToyotaOpening:
+    def __init__(self, closed=True):
+        self.closed = closed
 
 
 class DataUpdateCoordinator:
@@ -78,11 +84,22 @@ class _Coordinator:
 
 
 class _Vehicle:
-    def __init__(self, vin="TESTVIN", subscribed=True, remote_start=None):
+    def __init__(
+        self,
+        vin="TESTVIN",
+        subscribed=True,
+        remote_start=None,
+        generation="17CYPLUS",
+        electric=False,
+        charging=False,
+    ):
         self.vin = vin
         self.subscribed = subscribed
+        self.generation = generation
+        self.electric = electric
         self.features = {
-            VehicleFeatures.RemoteStartStatus: remote_start or ToyotaRemoteStart()
+            VehicleFeatures.RemoteStartStatus: remote_start or ToyotaRemoteStart(),
+            VehicleFeatures.ChargingStatus: ToyotaOpening(closed=not charging),
         }
         self.commands = []
         self.polls = 0
@@ -117,6 +134,7 @@ def _load_switch_module():
         "toyota_na.vehicle",
         "toyota_na.vehicle.base_vehicle",
         "toyota_na.vehicle.entity_types",
+        "toyota_na.vehicle.entity_types.ToyotaOpening",
         "toyota_na.vehicle.entity_types.ToyotaRemoteStart",
         "homeassistant",
         "homeassistant.components",
@@ -142,6 +160,10 @@ def _load_switch_module():
             VehicleFeatures=VehicleFeatures,
         )
         _module("toyota_na.vehicle.entity_types")
+        _module(
+            "toyota_na.vehicle.entity_types.ToyotaOpening",
+            ToyotaOpening=ToyotaOpening,
+        )
         _module(
             "toyota_na.vehicle.entity_types.ToyotaRemoteStart",
             ToyotaRemoteStart=ToyotaRemoteStart,
@@ -171,10 +193,21 @@ def _load_switch_module():
         )
         _module(
             "switch_test_package.const",
-            COMMAND_MAP={"engine_start": "start", "engine_stop": "stop"},
+            COMMAND_MAP={
+                "engine_start": "start",
+                "engine_stop": "stop",
+                "hazards_on": "hazards-on",
+                "hazards_off": "hazards-off",
+                "charge_start": "charge-start",
+                "charge_stop": "charge-stop",
+            },
+            CHARGE_START="charge_start",
+            CHARGE_STOP="charge_stop",
             DOMAIN="toyota_na",
             ENGINE_START="engine_start",
             ENGINE_STOP="engine_stop",
+            HAZARDS_ON="hazards_on",
+            HAZARDS_OFF="hazards_off",
         )
 
         spec = importlib.util.spec_from_file_location(
@@ -243,8 +276,37 @@ class RemoteStartSwitchTests(unittest.IsolatedAsyncioTestCase):
             lambda entities, _update_before_add: added.extend(entities),
         )
 
-        self.assertEqual(1, len(added))
-        self.assertEqual("SUBSCRIBED", added[0].vin)
+        self.assertEqual(2, len(added))
+        self.assertTrue(all(entity.vin == "SUBSCRIBED" for entity in added))
+
+    async def test_hazards_and_charging_use_paired_commands(self):
+        vehicle = _Vehicle(generation="24MM", electric=True, charging=False)
+        coordinator = _Coordinator([vehicle])
+        hass = _Hass()
+        hazards = switch_module.ToyotaHazardsSwitch(
+            coordinator, "Hazard Lights", vehicle.vin
+        )
+        charging = switch_module.ToyotaChargingSwitch(
+            coordinator, "Vehicle Charging", vehicle.vin
+        )
+        hazards.hass = hass
+        charging.hass = hass
+
+        await hazards.async_turn_on()
+        self.assertTrue(hazards.is_on)
+        self.assertEqual(["hazards-on"], vehicle.commands)
+        with patch.object(switch_module.asyncio, "sleep", new=AsyncMock()):
+            await hass.coroutines.pop(0)
+        self.assertTrue(hazards.is_on)
+
+        self.assertFalse(charging.is_on)
+        await charging.async_turn_on()
+        self.assertTrue(charging.is_on)
+        self.assertEqual(["hazards-on", "charge-start"], vehicle.commands)
+        vehicle.features[VehicleFeatures.ChargingStatus].closed = False
+        with patch.object(switch_module.asyncio, "sleep", new=AsyncMock()):
+            await hass.coroutines.pop()
+        self.assertTrue(charging.is_on)
 
     async def test_command_failure_clears_optimistic_state(self):
         vehicle = _Vehicle()
