@@ -1,5 +1,5 @@
 engine_start:
-  description: Remote start your Toyota vehicle.
+  description: Start remote climate or the engine on your Toyota vehicle.
   fields:
     vehicle:
       description:
@@ -9,7 +9,7 @@ engine_start:
         device:
           integration: toyota_na
 engine_stop:
-  description: Remote stop your Toyota vehicle.
+  description: Stop remote climate or the engine on your Toyota vehicle.
   fields:
     vehicle:
       description:

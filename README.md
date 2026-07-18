@@ -32,9 +32,18 @@ Sensors:
 * EV Connector Status
 * EV Charging Status
 
+Controls:
+* Vehicle lock/unlock (Remote Subscription Required)
+* Remote start/climate switch (Remote Subscription Required)
+
+The lock and remote start/climate controls use native Home Assistant `lock` and
+`switch` entities so they can be exposed to supported voice assistants. Vehicle
+telemetry remains read-only sensor data; Alexa and Google only accept a limited
+set of sensor device classes.
+
 Services:
 * Lock/Unlock Doors (Remote Subscription Required)
-* Remote Start/Stop Engine (Remote Subscription Required)
+* Remote Start/Stop Climate or Engine (Remote Subscription Required)
 * Hazards On/Off (Remote Subscription Required)
 * Refresh Data
 ## Installation

@@ -4,7 +4,6 @@ import logging
 from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
 from toyota_na.vehicle.entity_types.ToyotaLockableOpening import ToyotaLockableOpening
 from toyota_na.vehicle.entity_types.ToyotaOpening import ToyotaOpening
-from toyota_na.vehicle.entity_types.ToyotaRemoteStart import ToyotaRemoteStart
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -96,29 +95,6 @@ class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
                 return not sensor.closed
         elif isinstance(sensor, ToyotaOpening):
             return not sensor.closed
-        elif isinstance(sensor, ToyotaRemoteStart):
-            if self.device_class == BinarySensorDeviceClass.RUNNING:
-                return sensor.on
-
-    @property
-    def extra_state_attributes(self):
-        if self._vehicle_feature == VehicleFeatures.RemoteStartStatus:
-            remote_start = cast(
-                ToyotaRemoteStart,
-                self.feature(self._vehicle_feature),
-            )
-            if (
-                remote_start is not None
-                and remote_start.time_left is not None
-                and remote_start.start_time is not None
-            ):
-
-                return {
-                    "end_time": remote_start.end_time,
-                    "minutes_remaining": remote_start.time_left,
-                    "start_time": remote_start.start_time,
-                    "total_runtime": remote_start.timer,
-                }
 
     @property
     def available(self):

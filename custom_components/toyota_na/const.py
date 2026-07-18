@@ -160,14 +160,6 @@ BINARY_SENSORS = [
         "electric": False,
     },
     {
-        "device_class": BinarySensorDeviceClass.RUNNING,
-        "feature": VehicleFeatures.RemoteStartStatus,
-        "icon": "mdi:car-hatchback",
-        "name": "Remote Start",
-        "subscription": False,
-        "electric": False,
-    },
-    {
         "device_class": BinarySensorDeviceClass.BATTERY_CHARGING,
         "feature": VehicleFeatures.ChargingStatus,
         "icon": "mdi:ev-station",
