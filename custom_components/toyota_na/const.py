@@ -1,8 +1,8 @@
 from toyota_na.vehicle.base_vehicle import VehicleFeatures
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import PERCENTAGE, UnitOfPressure
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import PERCENTAGE, UnitOfPressure, UnitOfTime
 
 from toyota_na.vehicle.base_vehicle import RemoteRequestCommand
 
@@ -305,7 +305,8 @@ SENSORS = [
         "electric": True,
     },
     {
-        "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "state_class": None,
         "icon": "mdi:gauge",
         "feature": VehicleFeatures.LastTimeStamp,
         "name": "Last Update Timestamp",
@@ -314,7 +315,8 @@ SENSORS = [
         "electric": False,
     },
     {
-        "state_class": SensorStateClass.MEASUREMENT,
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "state_class": None,
         "icon": "mdi:gauge",
         "feature": VehicleFeatures.LastTirePressureTimeStamp,
         "name": "Last Tire Pressure Update Timestamp",
@@ -345,7 +347,7 @@ SENSORS = [
         "icon": "mdi:clock-outline",
         "feature": VehicleFeatures.RemainingChargeTime,
         "name": "Remaining Charge Time",
-        "unit": "",
+        "unit": UnitOfTime.MINUTES,
         "subscription": True,
         "electric": True,
     },
@@ -368,7 +370,7 @@ SENSORS = [
         "electric": True,
     },
     {
-        "state_class": SensorStateClass.MEASUREMENT,
+        "state_class": None,
         "icon": "mdi:ev-plug-type1",
         "feature": VehicleFeatures.ConnectorStatus,
         "name": "Connector Status",

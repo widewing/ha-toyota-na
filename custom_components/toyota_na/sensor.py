@@ -3,7 +3,7 @@ from typing import Any, Union, cast
 from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
 from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant
@@ -43,7 +43,8 @@ async def async_setup_entry(
                         cast(VehicleFeatures, feature_sensor["feature"]),
                         cast(str, entity_config["icon"]),
                         cast(str, entity_config["unit"]),
-                        cast(SensorStateClass, entity_config["state_class"]),
+                        cast(SensorStateClass, entity_config.get("state_class")),
+                        cast(SensorDeviceClass, entity_config.get("device_class")),
                         coordinator,
                         entity_config["name"],
                         vehicle.vin,
@@ -62,7 +63,8 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         vehicle_feature: VehicleFeatures,
         icon: str,
         unit_of_measurement: str,
-        state_class: Union[SensorStateClass, str],
+        state_class: Union[SensorStateClass, str, None],
+        device_class: Union[SensorDeviceClass, str, None],
         *args: Any,
     ):
         super().__init__(*args)
@@ -70,15 +72,23 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         self._state_class = state_class
         self._unit_of_measurement = unit_of_measurement
         self._vehicle_feature = vehicle_feature
+        self._device_class = device_class
 
     @property
     def icon(self) -> str:
         return self._icon
 
     @property
+    def device_class(self):
+        return self._device_class
+
+    @property
     def state(self):
         feat = cast(ToyotaNumeric, self.feature(self._vehicle_feature))
         if feat:
+            if self._device_class == SensorDeviceClass.TIMESTAMP and feat.value is not None:
+                import datetime
+                return datetime.datetime.fromtimestamp(feat.value, datetime.timezone.utc)
             return feat.value
 
     @property
