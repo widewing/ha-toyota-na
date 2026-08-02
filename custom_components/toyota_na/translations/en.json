@@ -22,5 +22,27 @@
         "otp_not_logged_in": "Invalid Verification code",
         "unknown": "Unexpected error."
       }
+    },
+    "options": {
+      "step": {
+        "init": {
+          "title": "Vehicles managed by this account",
+          "description": "Choose which vehicles this Toyota account should manage in Home Assistant. Uncheck a vehicle if it's shared with another Toyota account (Toyota \"family sharing\") that you've set up as its own entry in Home Assistant -- that lets the other account manage it instead.",
+          "data": {
+            "managed_vins": "Vehicles to manage from this account"
+          }
+        }
+      },
+      "abort": {
+        "entry_not_loaded": "This integration entry isn't currently loaded, so its vehicle list can't be fetched. Reload the entry and try again.",
+        "cannot_fetch_vehicles": "Couldn't fetch this account's vehicle list from Toyota. Try again in a moment.",
+        "no_vehicles": "This account has no vehicles to configure."
+      }
+    },
+    "issues": {
+      "shared_vehicle": {
+        "title": "A vehicle is shared with another Toyota account",
+        "description": "{vehicle} is visible to more than one Toyota account connected to Home Assistant. It's currently managed by {managing_account}, not {this_account}. If this is intentional, no action is needed -- this message will go away once the vehicle is no longer visible to both accounts, or once you explicitly assign it to one account using this integration's Configure option (Settings > Devices & Services > Toyota (North America) > Configure)."
+      }
     }
   }

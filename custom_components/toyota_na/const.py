@@ -20,6 +20,20 @@ REFRESH = "refresh"
 UPDATE_INTERVAL = 600
 REFRESH_STATUS_INTERVAL = 2 * 3600
 
+# hass.data[DOMAIN][VIN_CLAIMS] is a shared {vin: entry_id} map, used so that a vehicle visible
+# to two Toyota accounts (e.g. Toyota "family sharing") is only ever managed by one config entry
+# at a time -- see async_claim_vehicles()/async_release_vehicle_claims() in __init__.py.
+VIN_CLAIMS = "vin_claims"
+
+# entry.options key: list of VINs a config entry has been told NOT to manage, even though its
+# Toyota account can see them. Set via the integration's Configure (options) flow. Absent/empty
+# means "manage every vehicle this account can see", which is today's behavior unchanged.
+OPT_EXCLUDED_VINS = "excluded_vins"
+
+# Options flow form field name for the vehicle picker (inverse of OPT_EXCLUDED_VINS -- the user
+# picks what TO manage, which gets inverted to an exclusion list before saving).
+CONF_MANAGED_VINS = "managed_vins"
+
 COMMAND_MAP = {
     DOOR_LOCK: RemoteRequestCommand.DoorLock,
     DOOR_UNLOCK: RemoteRequestCommand.DoorUnlock,
@@ -29,6 +43,42 @@ COMMAND_MAP = {
     HAZARDS_OFF: RemoteRequestCommand.HazardsOff,
     REFRESH: RemoteRequestCommand.Refresh,
 }
+
+# door_lock/door_unlock are deliberately excluded -- the `lock` platform already provides
+# native Lock/Unlock controls for those via the vehicle's Lock entity, so a button would
+# just be redundant. Refresh isn't here either; it needs a different call path
+# (poll_vehicle_refresh(), not send_command()) so it's handled as its own entity class.
+#
+# HazardsOff is deliberately excluded too, unlike every other on/off pair here. Toyota's API
+# accepts a distinct "hazard-off" command (it's not an alias of "hazard-on" -- see
+# RemoteRequestCommand/the generation-specific command maps in patch_seventeen_cy(_plus).py),
+# but live testing showed pressing it has no observable effect on the vehicle, matching the
+# Toyota app's own behavior (hazards there are momentary -- they turn on and auto-stop after
+# ~60s, with no manual "off" available even from Toyota's own app). Best guess: Toyota's
+# remote-hazards feature is on/timeout-off only, and the cloud API silently accepts an "off"
+# request it doesn't actually act on. HazardsOn is kept since turning hazards on remotely is a
+# real, working, useful command. The pre-existing hazards_off service (see COMMAND_MAP above,
+# unrelated to this button list) is left as-is for automations, since this hasn't been proven
+# broken for every vehicle/account -- just never proven working -- and a service is a smaller,
+# opt-in surface than a dashboard button a normal user clicks and is left wondering why nothing
+# happened.
+COMMAND_BUTTONS = [
+    {
+        "command": RemoteRequestCommand.EngineStart,
+        "icon": "mdi:engine-outline",
+        "name": "Remote Start",
+    },
+    {
+        "command": RemoteRequestCommand.EngineStop,
+        "icon": "mdi:engine-off-outline",
+        "name": "Remote Stop",
+    },
+    {
+        "command": RemoteRequestCommand.HazardsOn,
+        "icon": "mdi:hazard-lights",
+        "name": "Hazards On",
+    },
+]
 
 BINARY_SENSORS = [
     {

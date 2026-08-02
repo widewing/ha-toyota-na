@@ -30,11 +30,26 @@ class ToyotaNABaseEntity(CoordinatorEntity[list[ToyotaVehicle]]):
 
     @property
     def name(self):
+        # Deliberately just the sensor name, not "{sensor_name} {vehicle model}" -- the manual
+        # concatenation this used to do produced confusing/doubled-looking names in the UI
+        # (e.g. a device page showing "2023 Highlander Front Driver Door 2023 Highlander").
+        # Note this class does NOT set `_attr_has_entity_name = True`, so Home Assistant isn't
+        # composing the device name in automatically either -- the friendly name really is just
+        # the bare sensor name (e.g. "Front Driver Door"), distinguished from the same sensor on
+        # another vehicle only by which device it's grouped under, not by the name itself.
+        # Migrating to has_entity_name=True (HA's modern entity-naming convention) would be a
+        # bigger, separate change -- it affects every existing entity_id.
         if self.vehicle is not None:
-            return f"{self.sensor_name} {self.device_info['name']}"
+            return self.sensor_name
 
     @property
     def unique_id(self):
+        # Plain vin+sensor_name, no config-entry namespacing. A vehicle visible to two Toyota
+        # accounts (Toyota "family sharing") could in principle collide here if both accounts'
+        # entries tried to create entities for the same VIN -- that's prevented by only ever
+        # letting one config entry create entities for a given VIN in the first place (the VIN
+        # claim guard in __init__.py, see async_claim_vehicles()). That external invariant is
+        # what keeps this safe; it isn't enforced by anything in this file.
         return f"{self.vin}.{self.sensor_name}"
 
     @property

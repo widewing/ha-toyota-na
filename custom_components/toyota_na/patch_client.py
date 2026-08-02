@@ -21,9 +21,9 @@ GRAPHQL_PRE_WAKE = """mutation SendPreWakeCommand($guid: String!) {
   }
 }"""
 
-GRAPHQL_CONFIRM_SUBSCRIPTION = """mutation ConfirmSubscriptionStatus($vin: String!) {
+GRAPHQL_CONFIRM_SUBSCRIPTION = """mutation ConfirmSubscriptionStatus($vin: String!, $backdoorType: String!) {
   confirmSubscriptionActive(vin: $vin, payload: {
-    vehicleCapabilities: { backdoorType: "hatch" }
+    vehicleCapabilities: { backdoorType: $backdoorType }
   }) { vin }
 }"""
 
@@ -99,10 +99,21 @@ async def send_refresh_request_17cyplus(self, vin):
 
 async def remote_request_17cyplus(self, vin, command):
     """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
-    return await self.api_post(
+    response = await self.api_post(
         "v1/global/remote/command", {"command": command},
         {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
     )
+    # Logged unconditionally (not just on HTTP error) because a "successful" response can
+    # still contain an embedded error/job-status Toyota expects the caller to check -- the
+    # existing api_request() only logs on HTTP >= 400, which tells us nothing when a command
+    # is silently ignored by the vehicle despite Toyota's cloud accepting the request. Logs the
+    # full raw response body, not just a status/error field -- debug-level only (never enabled
+    # by default), but worth checking this response can't ever carry anything sensitive before
+    # broadening what triggers debug logging here or elsewhere in this module.
+    _LOGGER.debug(
+        "Remote command '%s' for VIN ...%s response: %s", command, vin[-4:], response
+    )
+    return response
 
 async def get_vehicle_status_17cy(self, vin):
     """Legacy vehicle status."""
@@ -215,9 +226,24 @@ async def graphql_pre_wake(self, guid):
     return await self.graphql_request("SendPreWakeCommand", GRAPHQL_PRE_WAKE, {"guid": guid})
 
 
-async def graphql_confirm_subscription(self, vin):
-    """Confirm subscription is active for this VIN."""
-    return await self.graphql_request("ConfirmSubscriptionStatus", GRAPHQL_CONFIRM_SUBSCRIPTION, {"vin": vin})
+async def graphql_confirm_subscription(self, vin, backdoor_type=None):
+    """Confirm subscription is active for this VIN.
+
+    backdoor_type should be the vehicle's actual rear cargo access type from the Toyota API
+    (e.g. "hatch", "tailgate", "trunk"). Falls back to "hatch" if unknown, matching prior
+    hardcoded behavior, so callers that don't have this data yet don't regress. "hatch" isn't
+    known to be safe for every vehicle -- it's just what this code always sent before
+    backdoor_type was threaded through, so every caller already exercised that value without
+    apparent issue. A vehicle where "hatch" is actually wrong wouldn't necessarily be obvious
+    from this call alone (see the "no door/lock/hood/trunk status" warning in
+    patch_seventeen_cy_plus.py's update() for one symptom that could, among other causes,
+    stem from this).
+    """
+    return await self.graphql_request(
+        "ConfirmSubscriptionStatus",
+        GRAPHQL_CONFIRM_SUBSCRIPTION,
+        {"vin": vin, "backdoorType": backdoor_type or "hatch"},
+    )
 
 
 async def graphql_refresh_status(self, vin):

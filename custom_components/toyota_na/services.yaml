@@ -28,6 +28,12 @@ hazards_on:
       selector:
         device:
           integration: toyota_na
+# The dashboard "Hazards Off" button was removed (see COMMAND_BUTTONS in const.py) because it
+# didn't appear to do anything on a real vehicle -- Toyota's own app shows the same behavior
+# (hazards turn on, then auto-off after ~60s, with no manual "off"), suggesting this may not be
+# a real remote capability rather than a bug in this integration specifically. This service is
+# kept for automations since Toyota's API does accept a distinct "off" command and this hasn't
+# been proven broken for every vehicle/account, but don't rely on it doing anything observable.
 hazards_off:
   description: Hazards off your Toyota vehicle.
   fields:

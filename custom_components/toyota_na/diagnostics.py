@@ -53,6 +53,11 @@ async def async_get_config_entry_diagnostics(
     for (i, vehicle) in enumerate(user_vehicle_list):
         vin=vehicle["vin"]
 
+        # Collapses three raw API generations (17CYPLUS/21MM/24MM) into one, since they're all
+        # handled by the same vehicle class and endpoints -- same collapse patch_vehicle.py does
+        # via ApiVehicleGeneration when constructing vehicle objects, just re-derived here by
+        # hand instead of reusing that enum, since this file talks to the client directly
+        # without going through a vehicle object at all.
         if (vehicle["generation"] == "17CYPLUS" or vehicle["generation"] == "21MM"  or vehicle["generation"] == "24MM"):
             generation = "17CYPLUS"
         elif vehicle["generation"] == "17CY":
@@ -64,7 +69,9 @@ async def async_get_config_entry_diagnostics(
             pass
 
         try:
-            user_telemetry = await client.get_telemetry(vin, generation)
+            user_telemetry = await client.get_telemetry(
+                vin, region=vehicle.get("region", "US"), generation=generation
+            )
         except Exception:
             pass
 

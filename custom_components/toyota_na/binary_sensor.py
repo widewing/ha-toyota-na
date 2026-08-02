@@ -12,6 +12,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -21,6 +22,23 @@ from .const import BINARY_SENSORS, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
+# Body styles that structurally cannot have a given feature, regardless of what any
+# particular API poll happens to report. Used to actively clean up entities that were
+# created once (e.g. under an older integration version) and then orphaned into permanent
+# "unavailable" once the code correctly stopped populating them -- Home Assistant doesn't
+# prune entities a platform silently stops providing, so without this they linger forever.
+#
+# Only Trunk/"tailgate" is listed because it's the only case actually confirmed via live
+# testing (a pickup truck's tailgate reports as `backdoor_type: "tailgate"`, and the API never
+# sends a Trunk feature value for it). Other body-style mismatches may well exist (e.g. no
+# moonroof, no rear doors on a 2-door) but haven't been observed/confirmed -- add an entry here
+# the same way, keyed by whatever `backdoor_type` (or other vehicle attribute) value structurally
+# rules the feature out, once one is confirmed.
+_STRUCTURALLY_UNSUPPORTED_BACKDOOR_TYPES = {
+    VehicleFeatures.Trunk: {"tailgate"},
+}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -28,6 +46,7 @@ async def async_setup_entry(
 ):
     """Set up the binary_sensor platform."""
     binary_sensors = []
+    registry = er.async_get(hass)
 
     coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
         config_entry.entry_id
@@ -43,6 +62,29 @@ async def async_setup_entry(
                     continue
                 if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):
                     continue
+
+                unsupported_backdoor_types = _STRUCTURALLY_UNSUPPORTED_BACKDOOR_TYPES.get(
+                    feature_sensor["feature"]
+                )
+                if unsupported_backdoor_types and vehicle.backdoor_type in unsupported_backdoor_types:
+                    # Rebuilds ToyotaNABaseEntity.unique_id's format (base_entity.py) by hand,
+                    # since there's no entity object here yet to ask -- if that format ever
+                    # changes, this must change with it or stale-entity cleanup silently stops
+                    # matching anything.
+                    stale_entity_id = registry.async_get_entity_id(
+                        "binary_sensor",
+                        DOMAIN,
+                        f"{vehicle.vin}.{entity_config['name']}",
+                    )
+                    if stale_entity_id:
+                        _LOGGER.info(
+                            "Removing %s: not applicable to this vehicle's body style (backdoorType=%s)",
+                            stale_entity_id,
+                            vehicle.backdoor_type,
+                        )
+                        registry.async_remove(stale_entity_id)
+                    continue
+
                 feature = vehicle.features.get(cast(VehicleFeatures, feature_sensor["feature"]))
                 if feature is None:
                     continue
@@ -122,4 +164,16 @@ class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
 
     @property
     def available(self):
-        return self.feature(self._vehicle_feature) is not None
+        sensor = self.feature(self._vehicle_feature)
+        if sensor is None:
+            return False
+        # Some API responses report lock state without reporting open/closed position
+        # (closed is None in that case). The DOOR-class reading has nothing to show then --
+        # surfacing it as unavailable is more honest than fabricating an "open" state.
+        if (
+            self.device_class == BinarySensorDeviceClass.DOOR
+            and isinstance(sensor, ToyotaOpening)
+            and sensor.closed is None
+        ):
+            return False
+        return True

@@ -1,5 +1,6 @@
 import datetime
 import logging
+from typing import Union
 
 from toyota_na.client import ToyotaOneClient
 from toyota_na.vehicle.base_vehicle import (
@@ -67,7 +68,6 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         "spareTirePressure": VehicleFeatures.SpareTirePressure,
         "tripA": VehicleFeatures.TripDetailsA,
         "tripB": VehicleFeatures.TripDetailsB,
-        "vehicleLocation": VehicleFeatures.ParkingLocation,
         "nextService": VehicleFeatures.NextService,
         "speed": VehicleFeatures.Speed,
     }
@@ -98,7 +98,22 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
         )
 
     async def update(self):
-        
+
+        # Telemetry is parsed first, vehicle_status second, deliberately -- both report
+        # window/moonroof state, and vehicle_status is the fresher/more authoritative source
+        # for those when it includes them at all (confirmed by direct physical test on the
+        # 17CYPLUS-class code path; same map/parsing pattern applies here). vehicle_status
+        # running second means it overwrites telemetry's value when it has one, and leaves
+        # telemetry's value in place on polls where vehicle_status doesn't report window state.
+        try:
+            # telemetry
+            telemetry = await self._client.get_telemetry(self._vin, self._region, self._generation.value)
+            if telemetry:
+                self._parse_telemetry(telemetry)
+        except Exception as e:
+            _LOGGER.debug("Error parsing telemetry: %s", e)
+            pass
+
         try:
             if self._has_remote_subscription:
                 # vehicle_health_status
@@ -109,15 +124,6 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                     self._parse_vehicle_status(vehicle_status)
         except Exception as e:
             _LOGGER.debug("Error parsing vehicle status: %s", e)
-            pass
-
-        try:
-            # telemetry
-            telemetry = await self._client.get_telemetry(self._vin, self._region, self._generation.value)
-            if telemetry:
-                self._parse_telemetry(telemetry)
-        except Exception as e:
-            _LOGGER.debug("Error parsing telemetry: %s", e)
             pass
 
         try:
@@ -208,17 +214,38 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
     # vehicle_health_status
     #
 
-    def _isClosed(self, section) -> bool:
+    # Position words mean the value reports open/closed state; lock words mean it reports
+    # lock state instead. Some generations report only a single lock-state value with no
+    # position at all, where older shapes report position first, then lock state. Reverse-
+    # engineered from live payloads (see the identical constants/comment in
+    # patch_seventeen_cy_plus.py), not from Toyota documentation.
+    _POSITION_VALUES = ("closed", "open", "opened")
+    _LOCK_STATE_VALUES = ("locked", "unlocked")
+
+    def _isClosed(self, section) -> Union[bool, None]:
+        """Whether the section reports a closed/open position. Returns None if position
+        isn't reported at all (e.g. a single lock-state-only value)."""
         values = section.get("values", [])
         if not values:
             return False
-        return values[0].get("value", "").lower() == "closed"
+        first_val = values[0].get("value", "").lower()
+        if first_val in self._LOCK_STATE_VALUES:
+            return None
+        return first_val == "closed"
 
-    def _isLocked(self, section) -> bool:
+    def _isLocked(self, section) -> Union[bool, None]:
+        """Whether the section reports lock state, as either the second value entry
+        (older shape) or the only value entry (newer shape). Returns None if lock state
+        isn't reported at all."""
         values = section.get("values", [])
-        if len(values) < 2:
-            return False
-        return values[1].get("value", "").lower() == "locked"
+        if not values:
+            return None
+        first_val = values[0].get("value", "").lower()
+        if len(values) == 1 and first_val in self._LOCK_STATE_VALUES:
+            return first_val == "locked"
+        if len(values) >= 2:
+            return values[1].get("value", "").lower() == "locked"
+        return None
 
     def _parse_vehicle_status(self, vehicle_status: dict) -> None:
         if not vehicle_status:
@@ -248,18 +275,26 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 # We don't support all features necessarily. So avoid throwing on a key error.
                 if self._vehicle_status_category_map.get(key) is not None:
                     values = section.get("values", [])
-                    # CLOSED is always the first value entry. So we can use it to determine which subtype to instantiate
-                    if len(values) == 1:
+                    if not values:
+                        continue
+                    first_val = values[0].get("value", "").lower()
+                    # Deliberate: an unrecognized first value means skip this section for this
+                    # poll, leaving any existing feature value from a prior poll in place (see
+                    # the identical choice in patch_seventeen_cy_plus.py).
+                    if first_val not in self._POSITION_VALUES + self._LOCK_STATE_VALUES:
+                        continue
+
+                    closed = self._isClosed(section)
+                    locked = self._isLocked(section)
+
+                    if locked is not None:
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaOpening(self._isClosed(section))
-                    elif len(values) >= 2:
+                        ] = ToyotaLockableOpening(closed=closed, locked=locked)
+                    elif closed is not None:
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaLockableOpening(
-                            closed=self._isClosed(section),
-                            locked=self._isLocked(section),
-                        )
+                        ] = ToyotaOpening(closed=closed)
 
     #
     # get_telemetry
@@ -288,11 +323,14 @@ class SeventeenCYToyotaVehicle(ToyotaVehicle):
                 self._features[VehicleFeatures.FuelLevel] = ToyotaNumeric(value, "%")
                 continue
 
-            # vehicle_location has a different shape and different target entity class
+            # vehicle_location has a different shape and different target entity class.
+            # Toyota's own API labels this field "Last Parked", and it's the only location
+            # telemetry provides, so it backs both RealTimeLocation and ParkingLocation
+            # (the latter is otherwise only available via REST, which isn't always reachable).
             if key == "vehicleLocation":
-                self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
-                    value.get("latitude"), value.get("longitude")
-                )
+                location = ToyotaLocation(value.get("latitude"), value.get("longitude"))
+                self._features[VehicleFeatures.RealTimeLocation] = location
+                self._features[VehicleFeatures.ParkingLocation] = location
                 continue
 
             if self._vehicle_telemetry_map.get(key) is not None:

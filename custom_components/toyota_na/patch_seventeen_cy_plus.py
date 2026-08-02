@@ -1,5 +1,6 @@
 import datetime
 import logging
+from typing import Union
 
 from toyota_na.client import ToyotaOneClient
 from toyota_na.vehicle.base_vehicle import (
@@ -48,6 +49,9 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "Other Hood": VehicleFeatures.Hood,
     }
 
+    # "vehicleLocation" is deliberately not mapped here -- it needs a different target entity
+    # class (ToyotaLocation, not ToyotaNumeric) and backs two features at once, so it's handled
+    # as a special case in _parse_telemetry() below instead of through this table.
     _vehicle_telemetry_map = {
         "distanceToEmpty": VehicleFeatures.DistanceToEmpty,
         "flTirePressure": VehicleFeatures.FrontDriverTire,
@@ -59,7 +63,6 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "spareTirePressure": VehicleFeatures.SpareTirePressure,
         "tripA": VehicleFeatures.TripDetailsA,
         "tripB": VehicleFeatures.TripDetailsB,
-        "vehicleLocation": VehicleFeatures.ParkingLocation,
         "nextService": VehicleFeatures.NextService,
         "speed": VehicleFeatures.Speed,
 
@@ -79,6 +82,9 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         model_year: str,
         vin: str,
         region: str,
+        backdoor_type: str = None,
+        capabilities: dict = None,
+        api_generation: str = None,
     ):
         self._has_remote_subscription = has_remote_subscription
         self._has_electric = has_electric
@@ -93,33 +99,25 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             vin,
             region,
             ApiVehicleGeneration.CY17PLUS,
+            backdoor_type,
+            capabilities,
+            api_generation,
         )
 
     _last_graphql_status = None  # persist last successful GraphQL status
 
     async def update(self):
 
-        try:
-            if self._has_remote_subscription:
-                # REST v1/global/remote/status provides door/lock/window/hood/hatch
-                vehicle_status = await self._client.get_vehicle_status_17cyplus(self._vin)
-                if vehicle_status:
-                    self._last_vehicle_status = vehicle_status
-                    self._parse_vehicle_status(vehicle_status)
-                elif self._last_vehicle_status:
-                    self._parse_vehicle_status(self._last_vehicle_status)
-
-                # WebSocket cached data (if available) provides additional detail
-                ws_handler = getattr(self._client, '_ws_handler', None)
-                if ws_handler:
-                    ws_status = ws_handler.get_cached_status(self._vin)
-                    if ws_status and ws_status.get("vehicleState"):
-                        self._last_graphql_status = ws_status
-                        self._parse_graphql_vehicle_status(ws_status)
-        except Exception as e:
-            _LOGGER.debug("Error fetching vehicle status: %s", e)
-            pass
-
+        # Telemetry is parsed first, vehicle_status second, deliberately -- both report
+        # window/moonroof state, and vehicle_status is the fresher/more authoritative source
+        # for those when it includes them at all (confirmed by direct physical test: a window
+        # left open was correctly reported "Open" by vehicle_status but incorrectly reported
+        # closed by telemetry for the same poll). vehicle_status running second means it
+        # overwrites telemetry's value when it has one, and simply leaves telemetry's value in
+        # place on the (common) polls where vehicle_status doesn't report window state at all.
+        # If NEITHER source reports a given feature on a given poll, its entry in self._features
+        # simply isn't touched -- the entity keeps showing whatever it last had, indefinitely,
+        # with no staleness indicator. Known limitation, not specific to this reordering.
         try:
             # telemetry
             telemetry = await self._client.get_telemetry(self._vin, self._region)
@@ -131,13 +129,58 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             if self._has_remote_subscription:
+                # REST v1/global/remote/status provides door/lock/window/hood/hatch
+                vehicle_status = await self._client.get_vehicle_status_17cyplus(self._vin)
+                if vehicle_status:
+                    self._last_vehicle_status = vehicle_status
+                    self._parse_vehicle_status(vehicle_status)
+                elif self._last_vehicle_status:
+                    # _last_vehicle_status has no TTL/expiry -- if this account permanently loses
+                    # access (see the warning below), every future poll re-parses this same
+                    # snapshot indefinitely, so door/window/lock entities keep showing that last-
+                    # known state forever rather than going unknown. Predates this warning
+                    # message; noted here since the warning could otherwise read as the whole
+                    # story.
+                    self._parse_vehicle_status(self._last_vehicle_status)
+
+                # WebSocket cached data (if available) provides additional detail
+                ws_handler = getattr(self._client, '_ws_handler', None)
+                ws_status = ws_handler.get_cached_status(self._vin) if ws_handler else None
+                if ws_status and ws_status.get("vehicleState"):
+                    self._last_graphql_status = ws_status
+                    self._parse_graphql_vehicle_status(ws_status)
+
+                if not vehicle_status and not self._last_vehicle_status and not ws_status:
+                    _LOGGER.warning(
+                        "No door/lock/hood/trunk status available for VIN ...%s, even though "
+                        "this vehicle has an active remote services subscription. If this "
+                        "persists, check whether this Toyota account is set as the primary "
+                        "remote-services driver for this vehicle -- Toyota returns empty "
+                        "responses to accounts that only have family-shared/guest access, "
+                        "even when the subscription itself is active.",
+                        self._vin[-4:],
+                    )
+        except Exception as e:
+            _LOGGER.debug("Error fetching vehicle status: %s", e)
+            pass
+
+        try:
+            if self._has_remote_subscription:
                 # engine_status - use 17cyplus endpoint
                 engine_status = await self._client.get_engine_status_17cyplus(self._vin)
                 if engine_status:
                     _LOGGER.debug("Engine status received for VIN %s", self._vin[-4:])
                     self._parse_engine_status(engine_status)
                 else:
-                    _LOGGER.debug("Engine status returned None for VIN %s", self._vin[-4:])
+                    _LOGGER.warning(
+                        "No remote-start status available for VIN ...%s, even though this "
+                        "vehicle has an active remote services subscription. If this persists, "
+                        "check whether this Toyota account is set as the primary remote-services "
+                        "driver for this vehicle -- Toyota returns empty responses to accounts "
+                        "that only have family-shared/guest access, even when the subscription "
+                        "itself is active.",
+                        self._vin[-4:],
+                    )
         except Exception as e:
             _LOGGER.debug("Error fetching engine status: %s", e)
             pass
@@ -162,7 +205,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             _LOGGER.debug("GraphQL pre-wake failed: %s", e)
 
         try:
-            await self._client.graphql_confirm_subscription(self._vin)
+            await self._client.graphql_confirm_subscription(self._vin, self.backdoor_type)
         except Exception as e:
             _LOGGER.debug("GraphQL confirm subscription failed: %s", e)
 
@@ -230,17 +273,40 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
     # vehicle_health_status
     #
 
-    def _isClosed(self, section) -> bool:
+    # Position words mean the value reports open/closed state; lock words mean it reports
+    # lock state instead. Some generations (e.g. 21MM) report only a single lock-state value
+    # with no position at all, where older generations report position first, then lock state.
+    # This is reverse-engineered from live payloads (diffing a working vs. a family-shared/
+    # degraded account's response for the same vehicle, plus multiple generations' raw API
+    # captures), not from any Toyota documentation -- there's no guarantee a future generation
+    # or API change won't report a third shape these values don't cover.
+    _POSITION_VALUES = ("closed", "open", "opened")
+    _LOCK_STATE_VALUES = ("locked", "unlocked")
+
+    def _isClosed(self, section) -> Union[bool, None]:
+        """Whether the section reports a closed/open position. Returns None if position
+        isn't reported at all (e.g. a single lock-state-only value)."""
         values = section.get("values", [])
         if not values:
             return False
-        return values[0].get("value", "").lower() == "closed"
+        first_val = values[0].get("value", "").lower()
+        if first_val in self._LOCK_STATE_VALUES:
+            return None
+        return first_val == "closed"
 
-    def _isLocked(self, section) -> bool:
+    def _isLocked(self, section) -> Union[bool, None]:
+        """Whether the section reports lock state, as either the second value entry
+        (older shape) or the only value entry (21MM+ shape). Returns None if lock state
+        isn't reported at all."""
         values = section.get("values", [])
-        if len(values) < 2:
-            return False
-        return values[1].get("value", "").lower() == "locked"
+        if not values:
+            return None
+        first_val = values[0].get("value", "").lower()
+        if len(values) == 1 and first_val in self._LOCK_STATE_VALUES:
+            return first_val == "locked"
+        if len(values) >= 2:
+            return values[1].get("value", "").lower() == "locked"
+        return None
 
     def _parse_vehicle_status(self, vehicle_status: dict) -> None:
         if not vehicle_status:
@@ -273,20 +339,27 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     if not values:
                         continue
                     first_val = values[0].get("value", "").lower()
-                    if first_val not in ("closed", "open", "opened", "locked", "unlocked"):
+                    # Deliberate: an unrecognized first value (e.g. a future third status word
+                    # Toyota starts sending) means we just skip this section for this poll,
+                    # leaving whatever feature value already exists from a prior poll in place,
+                    # rather than guessing at its meaning or clearing the feature to unknown.
+                    if first_val not in self._POSITION_VALUES + self._LOCK_STATE_VALUES:
                         continue
-                    # CLOSED is always the first value entry. So we can use it to determine which subtype to instantiate
-                    if len(values) == 1:
+
+                    closed = self._isClosed(section)
+                    locked = self._isLocked(section)
+
+                    if locked is not None:
+                        # We have lock information -- always represent it as a lockable
+                        # opening even when position isn't reported (closed will be None
+                        # in that case), so lock-state entities stay correct regardless.
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaOpening(self._isClosed(section))
-                    elif len(values) >= 2:
+                        ] = ToyotaLockableOpening(closed=closed, locked=locked)
+                    elif closed is not None:
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaLockableOpening(
-                            closed=self._isClosed(section),
-                            locked=self._isLocked(section),
-                        )
+                        ] = ToyotaOpening(closed=closed)
 
     #
     # GraphQL vehicle status parser
@@ -344,7 +417,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     pos_status = ((window.get("position") or {}).get("status", "")).lower()
                     self._features[feature] = ToyotaOpening(closed=(pos_status == "closed"))
 
-        # Hatch / Trunk / Tailgate -> mapped to VehicleFeatures.Trunk
+        # Hatch / Trunk / Tailgate -> mapped to VehicleFeatures.Trunk. Assumption (not
+        # confirmed against a payload where more than one key was present): a vehicle's rear
+        # cargo access is exactly one body style, so in practice only one of these three keys
+        # should ever actually be present. If that assumption is wrong for some vehicle, this
+        # order (hatch, then trunk, then tailgate) silently decides which one wins -- not a
+        # deliberate priority choice, just iteration order.
         for opening_key in ("hatch", "trunk", "tailgate"):
             opening = vehicle_state.get(opening_key)
             if opening:
@@ -433,11 +511,14 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 self._features[VehicleFeatures.FuelLevel] = ToyotaNumeric(value, "%")
                 continue
 
-            # vehicle_location has a different shape and different target entity class
+            # vehicle_location has a different shape and different target entity class.
+            # Toyota's own API labels this field "Last Parked", and it's the only location
+            # telemetry provides, so it backs both RealTimeLocation and ParkingLocation
+            # (the latter is otherwise only available via REST/WS, which aren't always reachable).
             if key == "vehicleLocation":
-                self._features[VehicleFeatures.RealTimeLocation] = ToyotaLocation(
-                    value.get("latitude"), value.get("longitude")
-                )
+                location = ToyotaLocation(value.get("latitude"), value.get("longitude"))
+                self._features[VehicleFeatures.RealTimeLocation] = location
+                self._features[VehicleFeatures.ParkingLocation] = location
                 continue
 
             if "Window" in key or "Roof" in key:

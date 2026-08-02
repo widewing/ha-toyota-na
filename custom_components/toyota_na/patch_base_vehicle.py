@@ -104,6 +104,21 @@ class ToyotaVehicle(ABC):
     _generation: ApiVehicleGeneration
     _vin: str
     _region: str
+    _backdoor_type: Union[str, None]
+    _capabilities: dict
+    _api_generation: Union[str, None]
+
+    # Maps a command to the remoteServiceCapabilities flag that indicates whether Toyota
+    # reports this vehicle as actually supporting it. Commands with no entry here (e.g.
+    # Refresh) are always considered supported.
+    _COMMAND_CAPABILITY_MAP = {
+        RemoteRequestCommand.DoorLock: "dlockUnlockCapable",
+        RemoteRequestCommand.DoorUnlock: "dlockUnlockCapable",
+        RemoteRequestCommand.EngineStart: "estartEnabled",
+        RemoteRequestCommand.EngineStop: "estopEnabled",
+        RemoteRequestCommand.HazardsOn: "hazardCapable",
+        RemoteRequestCommand.HazardsOff: "hazardCapable",
+    }
 
     def __init__(
         self,
@@ -115,11 +130,25 @@ class ToyotaVehicle(ABC):
         vin: str,
         region: str,
         generation: ApiVehicleGeneration,
+        backdoor_type: Union[str, None] = None,
+        capabilities: Union[dict, None] = None,
+        api_generation: Union[str, None] = None,
     ):
         """
         Initialize a new vehicle object. Must call `vehicle.update()` to fully populate the object.
 
         :param vin: Vehicle identification number
+        :param backdoor_type: The vehicle's actual rear cargo access type as reported by the
+            Toyota API (e.g. "hatch", "tailgate", "trunk"). Used for GraphQL calls that require
+            this capability to be declared accurately.
+        :param capabilities: The vehicle's remoteServiceCapabilities dict from the Toyota API,
+            used to avoid sending remote commands Toyota has already told us this vehicle
+            doesn't support (e.g. hazards on trucks that lack that capability).
+        :param api_generation: The raw generation string from the vehicle-list API response
+            (e.g. "17CYPLUS", "21MM", "24MM") -- distinct from `generation`, which several raw
+            API generations are deliberately collapsed into for a single vehicle-generation
+            class. Needed anywhere code cares which of those raw generations a vehicle actually
+            is, e.g. deciding whether it needs the AppSync WebSocket subscription.
         """
 
         self._features = {}
@@ -131,6 +160,9 @@ class ToyotaVehicle(ABC):
         self._model_year = model_year
         self._vin = vin
         self._region = region
+        self._backdoor_type = backdoor_type
+        self._capabilities = capabilities or {}
+        self._api_generation = api_generation
 
     @abstractmethod
     async def poll_vehicle_refresh(self) -> None:
@@ -187,6 +219,29 @@ class ToyotaVehicle(ABC):
     @property
     def vin(self):
         return self._vin
+
+    @property
+    def backdoor_type(self):
+        return self._backdoor_type
+
+    @property
+    def capabilities(self):
+        return self._capabilities
+
+    @property
+    def api_generation(self):
+        return self._api_generation
+
+    def supports_command(self, command: "RemoteRequestCommand") -> bool:
+        """Whether Toyota's reported remoteServiceCapabilities say this vehicle supports
+        the given command. Commands with no known capability flag, or capability data we
+        don't have, default to True — we only want to block commands we can positively
+        confirm are unsupported (e.g. hazards on a truck that lacks that capability),
+        not silently swallow commands just because we're missing data."""
+        capability_key = self._COMMAND_CAPABILITY_MAP.get(command)
+        if capability_key is None or capability_key not in self._capabilities:
+            return True
+        return bool(self._capabilities[capability_key])
 
     def __repr__(self):
         str = f"{self.__class__.__name__}(\n    features=(\n"
