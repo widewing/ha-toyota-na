@@ -14,14 +14,14 @@ from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 from toyota_na.vehicle.entity_types.ToyotaOpening import ToyotaOpening
 from toyota_na.vehicle.entity_types.ToyotaRemoteStart import ToyotaRemoteStart
 
+from .vehicle_compat import closed_from_status, locked_from_status
+
 _LOGGER = logging.getLogger(__name__)
 
 class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     _has_remote_subscription = False
     _has_electric = False
-    _last_vehicle_status = None  # persist last successful status across polls
-
     _command_map = {
         RemoteRequestCommand.DoorLock: "door-lock",
         RemoteRequestCommand.DoorUnlock: "door-unlock",
@@ -29,6 +29,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         RemoteRequestCommand.EngineStop: "engine-stop",
         RemoteRequestCommand.HazardsOn: "hazard-on",
         RemoteRequestCommand.HazardsOff: "hazard-off",
+        RemoteRequestCommand.PowerWindowsOpen: "power-window-open",
+        RemoteRequestCommand.PowerWindowsClose: "power-window-close",
+        RemoteRequestCommand.ChargeStart: "immediate-charge",
+        RemoteRequestCommand.ChargeStop: "charge-stop",
+        RemoteRequestCommand.SoundHorn: "sound-horn",
+        RemoteRequestCommand.BuzzerWarning: "buzzer-warning",
         RemoteRequestCommand.Refresh: "refresh",
     }
 
@@ -79,9 +85,14 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         model_year: str,
         vin: str,
         region: str,
+        generation: ApiVehicleGeneration = ApiVehicleGeneration.CY17PLUS,
+        backdoor_type: str = "hatch",
     ):
         self._has_remote_subscription = has_remote_subscription
         self._has_electric = has_electric
+        self._backdoor_type = backdoor_type
+        self._last_vehicle_status = None
+        self._last_graphql_status = None
 
         ToyotaVehicle.__init__(
             self,
@@ -92,10 +103,8 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             model_year,
             vin,
             region,
-            ApiVehicleGeneration.CY17PLUS,
+            generation,
         )
-
-    _last_graphql_status = None  # persist last successful GraphQL status
 
     async def update(self):
 
@@ -108,6 +117,21 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     self._parse_vehicle_status(vehicle_status)
                 elif self._last_vehicle_status:
                     self._parse_vehicle_status(self._last_vehicle_status)
+
+                # 24MM vehicles require an initial AppSync query. Parse it
+                # after REST so the current 24MM representation wins if both
+                # services happen to return data.
+                if self._generation == ApiVehicleGeneration.MM24:
+                    graphql_status = await self._client.graphql_get_vehicle_status(
+                        self._vin, self._backdoor_type, self._region
+                    )
+                    if graphql_status:
+                        self._last_graphql_status = graphql_status
+                        self._parse_graphql_vehicle_status(graphql_status)
+                    elif self._last_graphql_status:
+                        self._parse_graphql_vehicle_status(
+                            self._last_graphql_status
+                        )
 
                 # WebSocket cached data (if available) provides additional detail
                 ws_handler = getattr(self._client, '_ws_handler', None)
@@ -162,7 +186,9 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             _LOGGER.debug("GraphQL pre-wake failed: %s", e)
 
         try:
-            await self._client.graphql_confirm_subscription(self._vin)
+            await self._client.graphql_confirm_subscription(
+                self._vin, self._backdoor_type, self._region
+            )
         except Exception as e:
             _LOGGER.debug("GraphQL confirm subscription failed: %s", e)
 
@@ -187,8 +213,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             pass
 
     async def send_command(self, command: RemoteRequestCommand) -> None:
-        """Start the engine. Periodically refreshes the vehicle status to determine if the engine is running."""
-        await self._client.remote_request_17cyplus(self._vin, self._command_map[command])
+        """Send a generation-appropriate remote command."""
+        command_name = self._command_map[command]
+        if self._generation == ApiVehicleGeneration.MM24:
+            await self._client.remote_request_24mm(self._vin, command_name)
+            return
+        await self._client.remote_request_17cyplus(self._vin, command_name)
 
     #
     # engine_status
@@ -234,13 +264,13 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         values = section.get("values", [])
         if not values:
             return False
-        return values[0].get("value", "").lower() == "closed"
+        return closed_from_status(values[0].get("value")) is True
 
     def _isLocked(self, section) -> bool:
         values = section.get("values", [])
         if len(values) < 2:
             return False
-        return values[1].get("value", "").lower() == "locked"
+        return locked_from_status(values[1].get("value")) is True
 
     def _parse_vehicle_status(self, vehicle_status: dict) -> None:
         if not vehicle_status:
@@ -272,20 +302,23 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                     values = section.get("values", [])
                     if not values:
                         continue
-                    first_val = values[0].get("value", "").lower()
-                    if first_val not in ("closed", "open", "opened", "locked", "unlocked"):
+                    closed = closed_from_status(values[0].get("value"))
+                    if closed is None:
                         continue
                     # CLOSED is always the first value entry. So we can use it to determine which subtype to instantiate
                     if len(values) == 1:
                         self._features[
                             self._vehicle_status_category_map[key]
-                        ] = ToyotaOpening(self._isClosed(section))
+                        ] = ToyotaOpening(closed)
                     elif len(values) >= 2:
+                        locked = locked_from_status(values[1].get("value"))
+                        if locked is None:
+                            continue
                         self._features[
                             self._vehicle_status_category_map[key]
                         ] = ToyotaLockableOpening(
-                            closed=self._isClosed(section),
-                            locked=self._isLocked(section),
+                            closed=closed,
+                            locked=locked,
                         )
 
     #
@@ -306,6 +339,14 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         "rearPassengerSide": VehicleFeatures.RearPassengerWindow,
     }
 
+    _graphql_tire_map = {
+        "frontLeft": VehicleFeatures.FrontDriverTire,
+        "frontRight": VehicleFeatures.FrontPassengerTire,
+        "rearLeft": VehicleFeatures.RearDriverTire,
+        "rearRight": VehicleFeatures.RearPassengerTire,
+        "spare": VehicleFeatures.SpareTirePressure,
+    }
+
     def _parse_graphql_vehicle_status(self, status: dict) -> None:
         """Parse GraphQL GetVehicleStatus response into vehicle features."""
         if not status:
@@ -313,14 +354,16 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         # Location
         location = status.get("location")
-        if location and location.get("latitude") and location.get("longitude"):
+        if (
+            location
+            and location.get("latitude") is not None
+            and location.get("longitude") is not None
+        ):
             self._features[VehicleFeatures.ParkingLocation] = ToyotaLocation(
                 location["latitude"], location["longitude"]
             )
 
-        vehicle_state = status.get("vehicleState")
-        if not vehicle_state:
-            return
+        vehicle_state = status.get("vehicleState") or {}
 
         # Doors (each has lock + position)
         doors = vehicle_state.get("doors")
@@ -328,12 +371,17 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             for door_key, feature in self._graphql_door_map.items():
                 door = doors.get(door_key)
                 if door:
-                    lock_status = (door.get("lock") or {}).get("status", "").lower()
-                    pos_status = (door.get("position") or {}).get("status", "").lower()
-                    self._features[feature] = ToyotaLockableOpening(
-                        closed=(pos_status == "closed"),
-                        locked=(lock_status == "locked"),
+                    locked = locked_from_status(
+                        (door.get("lock") or {}).get("status")
                     )
+                    closed = closed_from_status(
+                        (door.get("position") or {}).get("status")
+                    )
+                    if closed is not None and locked is not None:
+                        self._features[feature] = ToyotaLockableOpening(
+                            closed=closed,
+                            locked=locked,
+                        )
 
         # Windows (position only)
         windows = vehicle_state.get("windows")
@@ -341,8 +389,34 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             for win_key, feature in self._graphql_window_map.items():
                 window = windows.get(win_key)
                 if window:
-                    pos_status = ((window.get("position") or {}).get("status", "")).lower()
-                    self._features[feature] = ToyotaOpening(closed=(pos_status == "closed"))
+                    closed = closed_from_status(
+                        (window.get("position") or {}).get("status")
+                    )
+                    if closed is not None:
+                        self._features[feature] = ToyotaOpening(closed=closed)
+
+        # Tire pressures. Toyota currently returns scalar psi/kpa/bar fields,
+        # while some response variants wrap the value and unit in an object.
+        tires = vehicle_state.get("tires") or {}
+        for tire_key, feature in self._graphql_tire_map.items():
+            tire = tires.get(tire_key) or {}
+            for pressure_key, default_unit in (
+                ("psi", "psi"),
+                ("kpa", "kPa"),
+                ("bar", "bar"),
+            ):
+                pressure = tire.get(pressure_key)
+                if pressure is None:
+                    continue
+                if isinstance(pressure, dict):
+                    value = pressure.get("value")
+                    unit = pressure.get("unit") or default_unit
+                else:
+                    value = pressure
+                    unit = default_unit
+                if value is not None:
+                    self._features[feature] = ToyotaNumeric(value, unit)
+                    break
 
         # Hatch / Trunk / Tailgate -> mapped to VehicleFeatures.Trunk
         for opening_key in ("hatch", "trunk", "tailgate"):
@@ -351,30 +425,40 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 lock_obj = opening.get("lock")
                 pos_obj = opening.get("position")
                 if lock_obj or pos_obj:
-                    lock_status = ((lock_obj or {}).get("status", "")).lower()
-                    pos_status = ((pos_obj or {}).get("status", "")).lower()
-                    if lock_obj:
+                    locked = locked_from_status((lock_obj or {}).get("status"))
+                    closed = closed_from_status((pos_obj or {}).get("status"))
+                    if closed is None:
+                        continue
+                    if locked is not None:
                         self._features[VehicleFeatures.Trunk] = ToyotaLockableOpening(
-                            closed=(pos_status == "closed"),
-                            locked=(lock_status == "locked"),
+                            closed=closed,
+                            locked=locked,
                         )
                     else:
                         self._features[VehicleFeatures.Trunk] = ToyotaOpening(
-                            closed=(pos_status == "closed")
+                            closed=closed
                         )
                     break  # use first available
 
         # Hood (position only)
         hood = vehicle_state.get("hood")
         if hood:
-            pos_status = ((hood.get("position") or {}).get("status", "")).lower()
-            self._features[VehicleFeatures.Hood] = ToyotaOpening(closed=(pos_status == "closed"))
+            closed = closed_from_status(
+                (hood.get("position") or {}).get("status")
+            )
+            if closed is not None:
+                self._features[VehicleFeatures.Hood] = ToyotaOpening(closed=closed)
 
         # Moonroof (position only)
         moonroof = vehicle_state.get("moonroof")
         if moonroof:
-            pos_status = ((moonroof.get("position") or {}).get("status", "")).lower()
-            self._features[VehicleFeatures.Moonroof] = ToyotaOpening(closed=(pos_status == "closed"))
+            closed = closed_from_status(
+                (moonroof.get("position") or {}).get("status")
+            )
+            if closed is not None:
+                self._features[VehicleFeatures.Moonroof] = ToyotaOpening(
+                    closed=closed
+                )
 
         # Engine
         engine = vehicle_state.get("engine")
@@ -405,6 +489,90 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
                 self._features[VehicleFeatures.DistanceToEmpty] = ToyotaNumeric(
                     range_val["value"], range_val.get("unit", "")
                 )
+
+        self._parse_graphql_electric_status(status.get("electric"))
+
+    def _parse_graphql_electric_status(self, electric: dict) -> None:
+        """Parse the electric document returned for 24MM EVs and PHEVs."""
+        if not electric:
+            return
+
+        battery = electric.get("battery") or {}
+        charge_level = (
+            battery.get("stateOfChargeDisplay")
+            or battery.get("plugInEnergy")
+            or battery.get("chargeRemainingAmount")
+        )
+        if charge_level and charge_level.get("value") is not None:
+            self._features[VehicleFeatures.ChargeLevel] = ToyotaNumeric(
+                charge_level["value"], charge_level.get("unit", "%")
+            )
+
+        electric_range = battery.get("travelableDistance")
+        if electric_range and electric_range.get("value") is not None:
+            measurement = ToyotaNumeric(
+                electric_range["value"], electric_range.get("unit", "")
+            )
+            self._features[VehicleFeatures.ChargeDistance] = measurement
+            self._features[VehicleFeatures.EvTravelableDistance] = measurement
+
+        electric_range_ac = battery.get("travelableDistanceAC")
+        if electric_range_ac and electric_range_ac.get("value") is not None:
+            self._features[VehicleFeatures.ChargeDistanceAC] = ToyotaNumeric(
+                electric_range_ac["value"], electric_range_ac.get("unit", "")
+            )
+
+        charging = electric.get("charging") or {}
+        if not charging:
+            return
+
+        charge_type = charging.get("chargeType")
+        if charge_type is not None:
+            self._features[VehicleFeatures.ChargeType] = ToyotaNumeric(
+                charge_type, ""
+            )
+
+        remaining = charging.get("remainingChargeTime") or {}
+        if remaining.get("value") is not None:
+            self._features[VehicleFeatures.RemainingChargeTime] = ToyotaNumeric(
+                remaining["value"], remaining.get("unit", "")
+            )
+
+        connector = charging.get("connector") or {}
+        connector_status = connector.get("status")
+        if connector_status is not None:
+            self._features[VehicleFeatures.ConnectorStatus] = ToyotaNumeric(
+                connector_status, ""
+            )
+
+        plug_status = (
+            connector.get("plugStatus")
+            or connector.get("plugInInfo")
+            or charging.get("chargingState")
+        )
+        if plug_status is not None:
+            self._features[VehicleFeatures.PlugStatus] = ToyotaNumeric(
+                plug_status, ""
+            )
+
+        charging_state = str(charging.get("chargingState") or "").lower()
+        charging_status = str(charging.get("chargingStatus") or "").lower()
+        is_charging = None
+        if charging_state in ("charging", "40", "56"):
+            is_charging = True
+        elif charging_state:
+            is_charging = False
+        elif charging_status:
+            is_charging = charging_status in (
+                "charging",
+                "active",
+                "in_progress",
+                "in-progress",
+            )
+        if is_charging is not None:
+            self._features[VehicleFeatures.ChargingStatus] = ToyotaOpening(
+                closed=not is_charging
+            )
 
     #
     # get_telemetry

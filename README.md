@@ -32,10 +32,31 @@ Sensors:
 * EV Connector Status
 * EV Charging Status
 
+Controls:
+* Vehicle lock/unlock (Remote Subscription Required)
+* Remote start/climate switch (Remote Subscription Required)
+* Hazard-light switch (Remote Subscription Required)
+* Power-window cover for open/close commands (Current Remote Service Required)
+* Immediate-charging switch for supported 24MM EVs/PHEVs
+* Horn and warning-buzzer buttons (Current Remote Service Required)
+
+The lock and remote start/climate controls use native Home Assistant `lock` and
+`switch` entities so they can be exposed to supported voice assistants. Vehicle
+telemetry remains read-only sensor data; Alexa and Google only accept a limited
+set of sensor device classes.
+
+Power windows use the native `cover` domain, horn and buzzer actions use
+momentary `button` entities, and hazard/charging controls use `switch` entities.
+Alexa and Google support those control domains. Tire pressures use the correct
+pressure-sensor device class, which neither assistant currently exposes.
+
 Services:
 * Lock/Unlock Doors (Remote Subscription Required)
-* Remote Start/Stop Engine (Remote Subscription Required)
+* Remote Start/Stop Climate or Engine (Remote Subscription Required)
 * Hazards On/Off (Remote Subscription Required)
+* Open/Close Power Windows (Current Remote Service Required)
+* Start/Stop Immediate Charging (Supported 24MM EV/PHEV Required)
+* Sound Horn/Warning Buzzer (Current Remote Service Required)
 * Refresh Data
 ## Installation
 ### HACS

@@ -3,9 +3,9 @@ from typing import Any, Union, cast
 from toyota_na.vehicle.base_vehicle import ToyotaVehicle, VehicleFeatures
 from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfLength
+from homeassistant.const import UnitOfLength, UnitOfPressure
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -44,6 +44,10 @@ async def async_setup_entry(
                         cast(str, entity_config["icon"]),
                         cast(str, entity_config["unit"]),
                         cast(SensorStateClass, entity_config["state_class"]),
+                        cast(
+                            Union[SensorDeviceClass, None],
+                            entity_config.get("device_class"),
+                        ),
                         coordinator,
                         entity_config["name"],
                         vehicle.vin,
@@ -53,7 +57,7 @@ async def async_setup_entry(
     async_add_devices(sensors, True)
 
 
-class ToyotaNumericSensor(ToyotaNABaseEntity):
+class ToyotaNumericSensor(ToyotaNABaseEntity, SensorEntity):
     _icon: str
     _vehicle_feature: VehicleFeatures
 
@@ -63,11 +67,13 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         icon: str,
         unit_of_measurement: str,
         state_class: Union[SensorStateClass, str],
+        device_class: Union[SensorDeviceClass, None],
         *args: Any,
     ):
         super().__init__(*args)
         self._icon = icon
         self._state_class = state_class
+        self._device_class = device_class
         self._unit_of_measurement = unit_of_measurement
         self._vehicle_feature = vehicle_feature
 
@@ -86,6 +92,10 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
         return self._state_class
 
     @property
+    def device_class(self):
+        return self._device_class
+
+    @property
     def unit_of_measurement(self):
 
         # We need to poll the unit of measure from the service itself to ensure we're passing
@@ -98,5 +108,11 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
                     return UnitOfLength.MILES
                 elif _unit == "km":
                     return UnitOfLength.KILOMETERS
+
+        if self._unit_of_measurement == "PRESSURE_UNIT":
+            feature = cast(ToyotaNumeric, self.feature(self._vehicle_feature))
+            if feature is not None and getattr(feature, "unit", None):
+                return feature.unit
+            return UnitOfPressure.PSI
 
         return self._unit_of_measurement

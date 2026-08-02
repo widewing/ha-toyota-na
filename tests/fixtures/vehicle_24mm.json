@@ -1,0 +1,57 @@
+{
+  "generation": "24MM",
+  "modelName": "RAV4 Plug-in Hybrid",
+  "remoteSubscriptionStatus": null,
+  "subscriptionStatus": "subscribed",
+  "remoteSubscriptionExists": true,
+  "evVehicle": false,
+  "fuelType": "I",
+  "extendedCapabilities": {
+    "doorLockUnlockCapable": true,
+    "remoteEngineStartStop": true
+  },
+  "vehicleState": {
+    "doors": {
+      "driverSide": {
+        "lock": {"status": "lock"},
+        "position": {"status": "close"}
+      },
+      "passengerSide": {
+        "lock": {"status": "unlock"},
+        "position": {"status": "open"}
+      }
+    },
+    "windows": {
+      "driverSide": {"position": {"status": "close"}},
+      "passengerSide": {"position": {"status": "close"}},
+      "rearDriverSide": {"position": {"status": "open"}},
+      "rearPassengerSide": {"position": {"status": "close"}}
+    },
+    "tires": {
+      "frontLeft": {"psi": 35.1},
+      "frontRight": {"psi": 35.3},
+      "rearLeft": {"psi": 34.8},
+      "rearRight": {"psi": 35.0},
+      "spare": {"kpa": {"value": 240, "unit": "kPa"}}
+    }
+  },
+  "electric": {
+    "battery": {
+      "chargeRemainingAmount": {"unit": "%", "value": 90},
+      "plugInEnergy": {"unit": "%", "value": 95},
+      "stateOfChargeDisplay": {"unit": "%", "value": 100},
+      "travelableDistance": {"unit": "mi", "value": 48},
+      "travelableDistanceAC": {"unit": "mi", "value": 42}
+    },
+    "charging": {
+      "chargeType": "AC",
+      "chargingStatus": "active",
+      "chargingState": "charging",
+      "remainingChargeTime": {"unit": "min", "value": 20},
+      "connector": {
+        "status": "connected",
+        "plugStatus": "plugged_in"
+      }
+    }
+  }
+}
