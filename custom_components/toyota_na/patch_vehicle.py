@@ -27,6 +27,7 @@ async def get_vehicles(client: ToyotaOneClient) -> list[ToyotaVehicle]:
                 model_year=vehicle["modelYear"],
                 vin=vehicle["vin"],
                 region=vehicle["region"],
+                generation=ApiVehicleGeneration(vehicle["generation"]),
             )
 
         elif ApiVehicleGeneration(vehicle["generation"]) == ApiVehicleGeneration.CY17:

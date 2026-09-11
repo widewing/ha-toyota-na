@@ -1,9 +1,12 @@
 import json
 import logging
 from urllib.parse import urljoin, urlencode
+import uuid
 import aiohttp
 
 API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
+# 21MM /v1/remote/route/* endpoints live at the CDN root, NOT under /oneapi/.
+CDN_GATEWAY = "https://onecdn.telematicsct.com/"
 GRAPHQL_ENDPOINT = "https://oa-api.telematicsct.com/graphql"
 APPSYNC_API_KEY = "da2-zgeayo2qh5eo7cj6pmdwhwugze"
 RESOLVER_API_KEY = "pypIHG015k4ABHWbcI4G0a94F7cC0JDo1OynpAsG"
@@ -103,6 +106,82 @@ async def remote_request_17cyplus(self, vin, command):
         "v1/global/remote/command", {"command": command},
         {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
     )
+
+
+async def remote_request_21mm(self, vin, command, generation="21MM", region="US"):
+    """Remote command for 21MM vehicles via the route pipeline.
+
+    Toyota's 21MM route pipeline lives at https://onecdn.telematicsct.com/v1/remote/route/,
+    NOT under /oneapi/.  Using api_post() would prepend /oneapi/ (API_GATEWAY) and land on
+    the wrong URL, which Toyota rejects with ONE-GLOBAL-RS-40009.
+    """
+    headers = await self._auth_headers()
+    headers.update({
+        "VIN": vin,
+        "X-BRAND": "T",
+        "x-region": region,
+        "X-GENERATION": generation,
+        "Content-Type": "application/json",
+        "X-CORRELATIONID": str(uuid.uuid4()),
+    })
+    url = urljoin(CDN_GATEWAY, "v1/remote/route/command")
+    payload = json.dumps({"command": command, "autoFixPopup": False})
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, data=payload) as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                _LOGGER.debug(
+                    "Toyota 21MM command error: POST %s -> %d | %s",
+                    url, resp.status, body[:500],
+                )
+                try:
+                    err_json = json.loads(body)
+                    messages = err_json.get("status", {}).get("messages", [])
+                    if messages:
+                        msg = messages[0]
+                        detail = msg.get("detailedDescription") or msg.get("description")
+                        code = msg.get("responseCode")
+                        if detail and code:
+                            raise RuntimeError(f"{detail} [{code}]")
+                        elif detail:
+                            raise RuntimeError(detail)
+                except (json.JSONDecodeError, KeyError):
+                    pass
+                resp.raise_for_status()
+            resp_json = json.loads(body)
+            return resp_json.get("payload", resp_json)
+
+
+async def get_engine_status_21mm(self, vin, generation="21MM", region="US"):
+    """Engine / climate status for 21MM vehicles via the route pipeline.
+
+    The 21MM status endpoint returns:
+      {"payload": {"vin": ..., "status": "started", "date": ..., "timer": 20}}
+    This endpoint also lives at the CDN root (not /oneapi/).
+    """
+    try:
+        headers = await self._auth_headers()
+        headers.update({
+            "VIN": vin,
+            "X-BRAND": "T",
+            "x-region": region,
+            "X-GENERATION": generation,
+        })
+        url = urljoin(CDN_GATEWAY, "v1/remote/route/engine-status")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                body = await resp.text()
+                if resp.status >= 400:
+                    _LOGGER.debug(
+                        "Toyota 21MM engine-status error: GET %s -> %d | %s",
+                        url, resp.status, body[:500],
+                    )
+                    return None
+                resp_json = json.loads(body)
+                return resp_json.get("payload", resp_json) or None
+    except Exception as e:
+        _LOGGER.debug("engine_status v1/remote/route/engine-status failed: %s", e)
+    return None
 
 async def get_vehicle_status_17cy(self, vin):
     """Legacy vehicle status."""
