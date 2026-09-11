@@ -79,6 +79,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         model_year: str,
         vin: str,
         region: str,
+        generation: ApiVehicleGeneration = ApiVehicleGeneration.CY17PLUS,
     ):
         self._has_remote_subscription = has_remote_subscription
         self._has_electric = has_electric
@@ -92,7 +93,7 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
             model_year,
             vin,
             region,
-            ApiVehicleGeneration.CY17PLUS,
+            generation,
         )
 
     _last_graphql_status = None  # persist last successful GraphQL status
@@ -131,8 +132,15 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
         try:
             if self._has_remote_subscription:
-                # engine_status - use 17cyplus endpoint
-                engine_status = await self._client.get_engine_status_17cyplus(self._vin)
+                # engine_status - use 21MM route endpoint for MM21, 17cyplus for others
+                if self._generation == ApiVehicleGeneration.MM21:
+                    engine_status = await self._client.get_engine_status_21mm(
+                        self._vin,
+                        generation=self._generation.value,
+                        region=self._region,
+                    )
+                else:
+                    engine_status = await self._client.get_engine_status_17cyplus(self._vin)
                 if engine_status:
                     _LOGGER.debug("Engine status received for VIN %s", self._vin[-4:])
                     self._parse_engine_status(engine_status)
@@ -188,6 +196,17 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
 
     async def send_command(self, command: RemoteRequestCommand) -> None:
         """Start the engine. Periodically refreshes the vehicle status to determine if the engine is running."""
+        if self._generation == ApiVehicleGeneration.MM21:
+            # 21MM vehicles require the /v1/remote/route/command endpoint with
+            # X-GENERATION and autoFixPopup. The legacy global endpoint returns
+            # ONE-GLOBAL-RS-40009 for this generation.
+            await self._client.remote_request_21mm(
+                self._vin,
+                self._command_map[command],
+                generation=self._generation.value,
+                region=self._region,
+            )
+            return
         await self._client.remote_request_17cyplus(self._vin, self._command_map[command])
 
     #
@@ -198,9 +217,12 @@ class SeventeenCYPlusToyotaVehicle(ToyotaVehicle):
         if not engine_status or "status" not in engine_status:
             return
 
+        raw_status = str(engine_status["status"]).lower()
+        is_on = raw_status in ("1", "started", "on", "true")
+
         self._features[VehicleFeatures.RemoteStartStatus] = ToyotaRemoteStart(
             date=engine_status.get("date"),
-            on=engine_status["status"] == "1",
+            on=is_on,
             timer=engine_status.get("timer"),
         )
     
