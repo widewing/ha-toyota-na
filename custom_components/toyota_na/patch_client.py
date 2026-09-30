@@ -1,13 +1,21 @@
+import asyncio
+import base64
 import json
 import logging
-from urllib.parse import urljoin, urlencode
+import uuid
+from urllib.parse import urlencode, urljoin
+
 import aiohttp
 
 API_GATEWAY = "https://onecdn.telematicsct.com/oneapi/"
 GRAPHQL_ENDPOINT = "https://oa-api.telematicsct.com/graphql"
+GRAPHQL_WS_ENDPOINT = "wss://oa-api.telematicsct.com/graphql/realtime"
+GRAPHQL_HOST = "oa-api.telematicsct.com"
 APPSYNC_API_KEY = "da2-zgeayo2qh5eo7cj6pmdwhwugze"
 RESOLVER_API_KEY = "pypIHG015k4ABHWbcI4G0a94F7cC0JDo1OynpAsG"
 USER_AGENT = "ToyotaOneApp/3.10.0 (com.toyota.oneapp; build:3100; Android 14) okhttp/4.12.0"
+TRANSPORT_BRAND = "T"
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=30)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,9 +29,9 @@ GRAPHQL_PRE_WAKE = """mutation SendPreWakeCommand($guid: String!) {
   }
 }"""
 
-GRAPHQL_CONFIRM_SUBSCRIPTION = """mutation ConfirmSubscriptionStatus($vin: String!) {
+GRAPHQL_CONFIRM_SUBSCRIPTION = """mutation ConfirmSubscriptionStatus($vin: String!, $backdoorType: String!) {
   confirmSubscriptionActive(vin: $vin, payload: {
-    vehicleCapabilities: { backdoorType: "hatch" }
+    vehicleCapabilities: { backdoorType: $backdoorType }
   }) { vin }
 }"""
 
@@ -35,11 +43,134 @@ GRAPHQL_REFRESH_STATUS = """mutation RefreshVehicleStatus($vin: String!) {
   }
 }"""
 
+GRAPHQL_GET_VEHICLE_STATUS = """query GetVehicleStatus($vin: String!) {
+  getVehicleStatus(vin: $vin) {
+    vin lastUpdateDateTime
+    vehicleState {
+      lastUpdateDateTime driverPosition
+      doors {
+        driverSide { lock { status } position { status } }
+        passengerSide { lock { status } position { status } }
+        rearDriverSide { lock { status } position { status } }
+        rearPassengerSide { lock { status } position { status } }
+      }
+      windows {
+        driverSide { position { status } }
+        passengerSide { position { status } }
+        rearDriverSide { position { status } }
+        rearPassengerSide { position { status } }
+      }
+      hatch { lock { status } position { status } }
+      hood { position { status } }
+      moonroof { position { status } }
+      trunk { lock { status } position { status } }
+      tailgate { lock { status } position { status } }
+      tires {
+        frontLeft { psi kpa bar displayLowTirePressureWarning }
+        frontRight { psi kpa bar displayLowTirePressureWarning }
+        rearLeft { psi kpa bar displayLowTirePressureWarning }
+        rearRight { psi kpa bar displayLowTirePressureWarning }
+        spare { psi kpa bar displayLowTirePressureWarning }
+        lastUpdateDateTime
+      }
+      engine { running lastUpdateDateTime status }
+    }
+    tripdetails {
+      lastUpdateDateTime
+      tripA { value unit }
+      tripB { value unit }
+      tripCount { value unit }
+    }
+    location { latitude longitude lastUpdateDateTime }
+    telemetry {
+      lastUpdateDateTime
+      odo { unit value }
+      fugage { unit value }
+      range { unit value }
+      totalAverageFuelConsumption { unit value }
+      averageFuelConsumptionSinceStart { unit value }
+    }
+    electric {
+      lastUpdateDateTime
+      battery {
+        chargeRemainingAmount { unit value }
+        powerSupplyPossibleTime { unit value }
+        travelableDistance { unit value }
+        travelableDistanceAC { unit value }
+        plugInEnergy { unit value }
+        stateOfChargeDisplay { unit value }
+      }
+      charging {
+        chargeType chargingStatus chargingState
+        remainingChargeTime { unit value }
+        remainingChargeTimeTo80Percent { unit value }
+        connector { status plugInInfo plugStatus }
+        chargeSettings {
+          targetLimit { value unit }
+          maxACCurrent { value setting }
+          maxDCPower { value setting }
+          lastUpdateDateTime
+        }
+        lastUpdateDateTime
+      }
+      gasoline {
+        powerSupplyPossibleTime { unit value }
+        travelableDistance { unit value }
+      }
+    }
+  }
+}"""
+
+GRAPHQL_REMOTE_COMMAND_STATUS = """subscription ReceiveRemoteCommandStatus($vin: String!) {
+  onPostRemoteCallback(vin: $vin) {
+    appRequestNo type category remoteCommandType message status vin command commandEnded
+  }
+}"""
+
+GRAPHQL_SEND_REMOTE_COMMAND = """mutation SendRemoteCommand($command: String!, $autoFixCommands: [String]!) {
+  executeRemoteCommand(commandInputBody: {
+    command: $command
+    autofixCommands: $autoFixCommands
+  }) {
+    payload { requestNo correlationId returnCode }
+    status { messages { responseCode description detailedDescription } }
+  }
+}"""
+
+
+def _vehicle_headers(vehicle_vin, region="US", **extra):
+    """Build headers for Toyota's shared North American API transport."""
+    return {
+        "VIN": vehicle_vin,
+        "X-BRAND": TRANSPORT_BRAND,
+        "x-region": region,
+        **extra,
+    }
+
+
+def appsync_authorization(token, guid, vin="", region="US", device_id=None):
+    """Build the per-vehicle authorization used by AppSync WebSockets."""
+    authorization = {
+        "host": GRAPHQL_HOST,
+        "x-api-key": APPSYNC_API_KEY,
+        "Authorization": "Bearer " + token,
+        "x-channel": "ONEAPP",
+        "X-BRAND": TRANSPORT_BRAND,
+        "X-APPBRAND": TRANSPORT_BRAND,
+        "x-region": region,
+        "vin": vin,
+        "x-guid": guid,
+    }
+    if device_id:
+        authorization["x-deviceid"] = device_id
+    return authorization
+
 
 async def get_telemetry(self, vin, region="US", generation="17CYPLUS"):
     try:
         return await self.api_get(
-            "v2/telemetry", {"VIN": vin, "GENERATION": generation, "X-BRAND": "T", "x-region": region}
+            "v2/telemetry",
+            _vehicle_headers(vin, region, GENERATION=generation),
         )
     except Exception as e:
         _LOGGER.debug("v2/telemetry failed: %s", e)
@@ -51,7 +182,7 @@ async def _auth_headers(self):
         "X-API-KEY": RESOLVER_API_KEY,
         "X-GUID": await self.auth.get_guid(),
         "X-CHANNEL": "ONEAPP",
-        "X-BRAND": "T",
+        "X-BRAND": TRANSPORT_BRAND,
         "x-region": "US",
         "X-APPVERSION": "3.4.0",
         "X-LOCALE": "en-US",
@@ -59,105 +190,124 @@ async def _auth_headers(self):
         "Accept": "application/json",
     }
 
-async def get_vehicle_status_17cyplus(self, vin):
+async def get_vehicle_status_17cyplus(self, vin, region="US"):
     """Vehicle status (doors, locks, windows, hood, hatch) for 21MM/24MM/17CYPLUS."""
     try:
-        res = await self.api_get("v1/global/remote/status", {
-            "VIN": vin, "vin": vin,
-        })
+        res = await self.api_get(
+            "v1/global/remote/status",
+            _vehicle_headers(vin, region, vin=vin),
+        )
         if res and res.get("vehicleStatus"):
             return res
     except Exception as e:
         _LOGGER.debug("vehicle_status v1/global/remote/status failed: %s", e)
     return None
 
-async def get_engine_status_17cyplus(self, vin):
+async def get_engine_status_17cyplus(self, vin, region="US"):
     """Engine status for 21MM/24MM/17CYPLUS."""
     try:
-        res = await self.api_get("v1/global/remote/engine-status", {"VIN": vin, "vin": vin})
+        res = await self.api_get(
+            "v1/global/remote/engine-status",
+            _vehicle_headers(vin, region, vin=vin),
+        )
         if res:
             return res
     except Exception as e:
         _LOGGER.debug("engine_status v1/global/remote/engine-status failed: %s", e)
     return None
 
-async def send_refresh_request_17cyplus(self, vin):
+async def send_refresh_request_17cyplus(self, vin, region="US"):
     """Refresh status via v1/global/remote/refresh-status."""
-    try:
-        return await self.api_post(
-            "v1/global/remote/refresh-status",
-            {
-                "guid": await self.auth.get_guid(),
-                "deviceId": self.auth.get_device_id(),
-                "vin": vin,
-            },
-            {"VIN": vin, "X-BRAND": "T", "x-region": "US"},
-        )
-    except Exception as e:
-        _LOGGER.debug("refresh-status failed: %s", e)
-    return None
-
-async def remote_request_17cyplus(self, vin, command):
-    """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
     return await self.api_post(
-        "v1/global/remote/command", {"command": command},
-        {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
+        "v1/global/remote/refresh-status",
+        {
+            "guid": await self.auth.get_guid(),
+            "deviceId": self.auth.get_device_id(),
+            "vin": vin,
+        },
+        _vehicle_headers(vin, region),
     )
 
-async def get_vehicle_status_17cy(self, vin):
+async def remote_request_17cyplus(self, vin, command, region="US"):
+    """Remote command (lock, unlock, engine start, etc.) via v1/global/remote."""
+    return await self.api_post(
+        "v1/global/remote/command",
+        {"command": command},
+        _vehicle_headers(vin, region),
+    )
+
+async def get_vehicle_status_17cy(self, vin, region="US"):
     """Legacy vehicle status."""
     try:
-        return await self.api_get("v2/legacy/remote/status", {"X-BRAND": "T", "VIN": vin})
+        return await self.api_get(
+            "v2/legacy/remote/status",
+            _vehicle_headers(vin, region),
+        )
     except Exception as e:
         _LOGGER.debug("v2/legacy/remote/status failed: %s", e)
         return None
 
-async def get_engine_status_17cy(self, vin):
+async def get_engine_status_17cy(self, vin, region="US"):
     """Legacy engine status."""
     try:
-        return await self.api_get("v1/legacy/remote/engine-status", {"X-BRAND": "T", "VIN": vin})
+        return await self.api_get(
+            "v1/legacy/remote/engine-status",
+            _vehicle_headers(vin, region),
+        )
     except Exception as e:
         _LOGGER.debug("v1/legacy/remote/engine-status failed: %s", e)
         return None
 
-async def send_refresh_request_17cy(self, vin):
+async def send_refresh_request_17cy(self, vin, region="US"):
     """Legacy refresh status."""
-    try:
-        return await self.api_post(
-            "v1/legacy/remote/refresh-status",
-            {
-                "guid": await self.auth.get_guid(),
-                "deviceId": self.auth.get_device_id(),
-                "deviceType": "Android",
-                "vin": vin,
-            },
-            {"X-BRAND": "T", "VIN": vin},
-        )
-    except Exception as e:
-        _LOGGER.debug("v1/legacy/remote/refresh-status failed: %s", e)
-        return None
+    return await self.api_post(
+        "v1/legacy/remote/refresh-status",
+        {
+            "guid": await self.auth.get_guid(),
+            "deviceId": self.auth.get_device_id(),
+            "deviceType": "Android",
+            "vin": vin,
+        },
+        _vehicle_headers(vin, region),
+    )
 
-async def get_electric_realtime_status(self, vin, generation="17CYPLUS"):
+
+async def remote_request_17cy(self, vin, command, value, region="US"):
+    """Remote command for legacy vehicles."""
+    return await self.api_post(
+        "v1/legacy/remote/command",
+        {
+            "command": {"code": command, "value": value},
+            "guid": await self.auth.get_guid(),
+            "deviceId": self.auth.get_device_id(),
+            "deviceType": "Android",
+            "vin": vin,
+        },
+        _vehicle_headers(vin, region),
+    )
+
+async def get_electric_realtime_status(
+    self, vin, generation="17CYPLUS", region="US"
+):
     try:
+        headers = _vehicle_headers(vin, region, vin=vin)
+        headers["device-id"] = self.auth.get_device_id()
         realtime_electric_status = await self.api_post(
             "v2/electric/realtime-status",
             {},
-            {
-                "device-id": self.auth.get_device_id(),
-                "vin": vin,
-                "X-BRAND": "T",
-                "x-region": "US",
-            },
+            headers,
         )
         if generation == "17CYPLUS":
-            return await self.get_electric_status(vin, realtime_electric_status["appRequestNo"])
+            return await self.get_electric_status(
+                vin, realtime_electric_status["appRequestNo"], region
+            )
         elif realtime_electric_status["returnCode"] == "ONE-RES-10000":
-            return await self.get_electric_status(vin)
+            return await self.get_electric_status(vin, region=region)
     except Exception as e:
         _LOGGER.debug("Electric realtime status failed: %s", e)
         return None
 
-async def get_electric_status(self, vin, realtime_status=None):
+async def get_electric_status(self, vin, realtime_status=None, region="US"):
     try:
         url = "v2/electric/status"
         if realtime_status:
@@ -165,7 +315,7 @@ async def get_electric_status(self, vin, realtime_status=None):
             url += "?" + urlencode(query_params)
 
         electric_status = await self.api_get(
-            url, {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
+            url, _vehicle_headers(vin, region)
         )
         if "vehicleInfo" in electric_status:
             return electric_status
@@ -173,17 +323,29 @@ async def get_electric_status(self, vin, realtime_status=None):
         _LOGGER.debug("Electric status failed: %s", e)
         return None
 
-async def graphql_request(self, operation_name, query, variables):
+async def graphql_request(
+    self,
+    operation_name,
+    query,
+    variables,
+    *,
+    vin=None,
+    region="US",
+    backdoor_type=None,
+    raise_errors=False,
+):
     """Make a GraphQL request to the AppSync endpoint."""
     headers = {
         "Content-Type": "application/json",
         "x-api-key": APPSYNC_API_KEY,
         "x-resolver-api-key": RESOLVER_API_KEY,
         "Authorization": "Bearer " + await self.auth.get_access_token(),
-        "vin": variables.get("vin", ""),
+        "vin": vin or variables.get("vin", ""),
         "x-guid": await self.auth.get_guid(),
         "x-deviceid": self.auth.get_device_id(),
-        "X-APPBRAND": "T",
+        "X-BRAND": TRANSPORT_BRAND,
+        "X-APPBRAND": TRANSPORT_BRAND,
+        "x-region": region,
         "x-channel": "ONEAPP",
         "X-APPVERSION": "3.4.0",
         "X-OSNAME": "Android",
@@ -191,38 +353,295 @@ async def graphql_request(self, operation_name, query, variables):
         "X-LOCALE": "en-US",
         "User-Agent": USER_AGENT,
     }
+    if backdoor_type:
+        headers["backdoorType"] = backdoor_type
     payload = json.dumps({
         "operationName": operation_name,
         "query": query,
         "variables": variables,
     })
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
         async with session.post(GRAPHQL_ENDPOINT, headers=headers, data=payload) as resp:
             body = await resp.text()
             if resp.status >= 400:
-                _LOGGER.debug("GraphQL %s error: HTTP %d: %s", operation_name, resp.status, body[:500])
+                _LOGGER.debug(
+                    "GraphQL %s error: HTTP %d: %s",
+                    operation_name,
+                    resp.status,
+                    body[:500],
+                )
+                if raise_errors:
+                    raise RuntimeError(
+                        "Toyota GraphQL %s failed with HTTP %d"
+                        % (operation_name, resp.status)
+                    )
                 return None
             result = json.loads(body)
             if result.get("errors"):
                 err = result["errors"][0]
-                _LOGGER.debug("GraphQL %s error: %s: %s", operation_name, err.get("errorType"), err.get("message"))
+                _LOGGER.debug(
+                    "GraphQL %s error: %s: %s",
+                    operation_name,
+                    err.get("errorType"),
+                    err.get("message"),
+                )
+                if raise_errors:
+                    extensions = err.get("extensions") or {}
+                    code = (
+                        extensions.get("responseCode")
+                        or extensions.get("code")
+                        or err.get("errorType")
+                    )
+                    detail = (
+                        extensions.get("detailedDescription")
+                        or err.get("message")
+                        or "Toyota rejected the AppSync request"
+                    )
+                    if code:
+                        detail = f"{detail} [{code}]"
+                    raise RuntimeError(detail)
                 return None
             return result.get("data")
 
 
-async def graphql_pre_wake(self, guid):
+async def graphql_pre_wake(self, guid, region="US"):
     """Send pre-wake command to wake the vehicle's telematics unit."""
-    return await self.graphql_request("SendPreWakeCommand", GRAPHQL_PRE_WAKE, {"guid": guid})
+    return await self.graphql_request(
+        "SendPreWakeCommand",
+        GRAPHQL_PRE_WAKE,
+        {"guid": guid},
+        region=region,
+        raise_errors=True,
+    )
 
 
-async def graphql_confirm_subscription(self, vin):
+async def graphql_confirm_subscription(
+    self, vin, backdoor_type="hatch", region="US"
+):
     """Confirm subscription is active for this VIN."""
-    return await self.graphql_request("ConfirmSubscriptionStatus", GRAPHQL_CONFIRM_SUBSCRIPTION, {"vin": vin})
+    backdoor_type = backdoor_type or "hatch"
+    return await self.graphql_request(
+        "ConfirmSubscriptionStatus",
+        GRAPHQL_CONFIRM_SUBSCRIPTION,
+        {"vin": vin, "backdoorType": backdoor_type},
+        region=region,
+        backdoor_type=backdoor_type,
+        raise_errors=True,
+    )
 
 
-async def graphql_refresh_status(self, vin):
+async def graphql_refresh_status(self, vin, region="US"):
     """Request vehicle to upload fresh status via GraphQL."""
-    return await self.graphql_request("RefreshVehicleStatus", GRAPHQL_REFRESH_STATUS, {"vin": vin})
+    return await self.graphql_request(
+        "RefreshVehicleStatus",
+        GRAPHQL_REFRESH_STATUS,
+        {"vin": vin},
+        region=region,
+        raise_errors=True,
+    )
+
+
+async def graphql_get_vehicle_status(
+    self, vin, backdoor_type="hatch", region="US"
+):
+    """Read current 24MM state before subscription updates arrive."""
+    backdoor_type = backdoor_type or "hatch"
+    data = await self.graphql_request(
+        "GetVehicleStatus",
+        GRAPHQL_GET_VEHICLE_STATUS,
+        {"vin": vin},
+        region=region,
+        backdoor_type=backdoor_type,
+    )
+    return data.get("getVehicleStatus") if data else None
+
+
+async def graphql_send_remote_command(
+    self, vin, command, region="US"
+):
+    """Submit a 24MM command after its callback subscription is ready."""
+    data = await self.graphql_request(
+        "SendRemoteCommand",
+        GRAPHQL_SEND_REMOTE_COMMAND,
+        {"command": command, "autoFixCommands": []},
+        vin=vin,
+        region=region,
+        raise_errors=True,
+    )
+    execution = data.get("executeRemoteCommand") if data else None
+    correlation_id = ((execution or {}).get("payload") or {}).get(
+        "correlationId"
+    )
+    if correlation_id:
+        return execution
+
+    messages = ((execution or {}).get("status") or {}).get("messages") or []
+    message = messages[0] if messages else {}
+    detail = (
+        message.get("detailedDescription")
+        or message.get("description")
+        or "Toyota did not return a correlation ID for the remote command."
+    )
+    code = message.get("responseCode")
+    if code:
+        detail = f"{detail} [{code}]"
+    raise RuntimeError(detail)
+
+
+def _remote_socket_error(message):
+    payload = message.get("payload") or {}
+    errors = payload.get("errors") if isinstance(payload, dict) else None
+    error = errors[0] if errors else payload
+    if isinstance(error, dict):
+        return (
+            error.get("message")
+            or error.get("error")
+            or "Toyota rejected the AppSync remote-command subscription."
+        )
+    return "Toyota rejected the AppSync remote-command subscription."
+
+
+async def _receive_remote_socket_message(ws, timeout):
+    message = await asyncio.wait_for(ws.receive(), timeout=timeout)
+    if message.type == aiohttp.WSMsgType.TEXT:
+        return json.loads(message.data)
+    if message.type in (
+        aiohttp.WSMsgType.CLOSE,
+        aiohttp.WSMsgType.CLOSED,
+        aiohttp.WSMsgType.ERROR,
+    ):
+        raise RuntimeError(
+            "Toyota closed the AppSync remote-command connection."
+        )
+    return {}
+
+
+async def _wait_for_remote_socket_event(
+    ws, expected_type, subscription_id=None
+):
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 15
+    while loop.time() < deadline:
+        message = await _receive_remote_socket_message(
+            ws, max(1, deadline - loop.time())
+        )
+        message_type = message.get("type")
+        if message_type == "ka":
+            continue
+        if message_type in ("connection_error", "error"):
+            raise RuntimeError(_remote_socket_error(message))
+        if message_type == expected_type and (
+            subscription_id is None or message.get("id") == subscription_id
+        ):
+            return
+    raise RuntimeError("Toyota's AppSync remote-command connection timed out.")
+
+
+async def _wait_for_remote_command_result(
+    ws, vin, subscription_id, request_no=None
+):
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 60
+    while loop.time() < deadline:
+        message = await _receive_remote_socket_message(
+            ws, max(1, deadline - loop.time())
+        )
+        message_type = message.get("type")
+        if message_type == "ka":
+            continue
+        if message_type in ("connection_error", "error"):
+            raise RuntimeError(_remote_socket_error(message))
+        if message_type != "data" or message.get("id") != subscription_id:
+            continue
+
+        callback = (
+            ((message.get("payload") or {}).get("data") or {}).get(
+                "onPostRemoteCallback"
+            )
+            or {}
+        )
+        if callback.get("vin") != vin:
+            continue
+        callback_request_no = callback.get("appRequestNo")
+        if (
+            request_no is not None
+            and callback_request_no is not None
+            and str(callback_request_no) != str(request_no)
+        ):
+            continue
+        status = str(callback.get("status", "")).lower()
+        detail = callback.get("message")
+        if status == "completed":
+            return callback
+        if status == "in_progress":
+            continue
+        if status in ("error", "timeout") or callback.get("commandEnded") is True:
+            raise RuntimeError(
+                detail
+                or f"Toyota ended the remote command with status {status}."
+            )
+    raise RuntimeError(
+        "Toyota accepted the command but did not report completion within "
+        "60 seconds."
+    )
+
+
+async def remote_request_24mm(self, vin, command, region="US"):
+    """Run a 24MM command through AppSync and await Toyota's callback."""
+    token = await self.auth.get_access_token()
+    guid = await self.auth.get_guid()
+    authorization = appsync_authorization(
+        token,
+        guid,
+        vin,
+        region,
+        self.auth.get_device_id(),
+    )
+    query = urlencode(
+        {
+            "header": base64.b64encode(
+                json.dumps(authorization).encode()
+            ).decode(),
+            "payload": base64.b64encode(b"{}").decode(),
+        }
+    )
+    websocket_url = f"{GRAPHQL_WS_ENDPOINT}?{query}"
+
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+        async with session.ws_connect(
+            websocket_url, protocols=["graphql-ws"], heartbeat=30
+        ) as ws:
+            await ws.send_json({"type": "connection_init"})
+            await _wait_for_remote_socket_event(ws, "connection_ack")
+
+            subscription_id = str(uuid.uuid4())
+            await ws.send_json(
+                {
+                    "id": subscription_id,
+                    "type": "start",
+                    "payload": {
+                        "data": json.dumps(
+                            {
+                                "query": GRAPHQL_REMOTE_COMMAND_STATUS,
+                                "variables": {"vin": vin},
+                            }
+                        ),
+                        "extensions": {"authorization": authorization},
+                    },
+                }
+            )
+            await _wait_for_remote_socket_event(
+                ws, "start_ack", subscription_id
+            )
+            execution = await self.graphql_send_remote_command(
+                vin, command, region
+            )
+            request_no = ((execution or {}).get("payload") or {}).get(
+                "requestNo"
+            )
+            return await _wait_for_remote_command_result(
+                ws, vin, subscription_id, request_no
+            )
 
 
 async def api_request(self, method, endpoint, header_params=None, **kwargs):
@@ -235,7 +654,7 @@ async def api_request(self, method, endpoint, header_params=None, **kwargs):
 
     url = urljoin(API_GATEWAY, endpoint)
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
         async with session.request(
                 method, url, headers=headers, **kwargs
         ) as resp:

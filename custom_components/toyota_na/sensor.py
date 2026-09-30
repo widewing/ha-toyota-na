@@ -5,13 +5,15 @@ from toyota_na.vehicle.entity_types.ToyotaNumeric import ToyotaNumeric
 
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfLength
+from homeassistant.const import UnitOfLength, UnitOfPressure
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util.unit_conversion import PressureConverter
 
 from .base_entity import ToyotaNABaseEntity
 from .const import DOMAIN, SENSORS
+from .entity_discovery import setup_entity_discovery
 
 
 async def async_setup_entry(
@@ -20,27 +22,28 @@ async def async_setup_entry(
     async_add_devices: AddEntitiesCallback,
 ):
     """Set up the sensor platform."""
-    sensors = []
-
     coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
         config_entry.entry_id
     ]["coordinator"]
 
-    for vehicle in coordinator.data:
-        for feature_sensor in SENSORS:
-            feature = vehicle.features.get(
-                cast(VehicleFeatures, feature_sensor["feature"])
-            )
-
-            entity_config = feature_sensor
-            if entity_config and isinstance(feature, ToyotaNumeric):
-                if vehicle.electric is False and cast(bool, entity_config["electric"]):
-                    continue
-                if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):
-                    continue
-                sensors.append(
-                    ToyotaNumericSensor(
-                        cast(VehicleFeatures, feature_sensor["feature"]),
+    def discover_sensors():
+        for vehicle in coordinator.data or []:
+            for entity_config in SENSORS:
+                vehicle_feature = cast(
+                    VehicleFeatures, entity_config["feature"]
+                )
+                feature = vehicle.features.get(vehicle_feature)
+                if isinstance(feature, ToyotaNumeric):
+                    if vehicle.electric is False and cast(
+                        bool, entity_config["electric"]
+                    ):
+                        continue
+                    if vehicle.subscribed is False and cast(
+                        bool, entity_config["subscription"]
+                    ):
+                        continue
+                    yield ToyotaNumericSensor(
+                        vehicle_feature,
                         cast(str, entity_config["icon"]),
                         cast(str, entity_config["unit"]),
                         cast(SensorStateClass, entity_config["state_class"]),
@@ -48,9 +51,13 @@ async def async_setup_entry(
                         entity_config["name"],
                         vehicle.vin,
                     )
-                )
 
-    async_add_devices(sensors, True)
+    setup_entity_discovery(
+        config_entry,
+        coordinator,
+        async_add_devices,
+        discover_sensors,
+    )
 
 
 class ToyotaNumericSensor(ToyotaNABaseEntity):
@@ -79,7 +86,19 @@ class ToyotaNumericSensor(ToyotaNABaseEntity):
     def state(self):
         feat = cast(ToyotaNumeric, self.feature(self._vehicle_feature))
         if feat:
+            if (
+                self._unit_of_measurement == UnitOfPressure.PSI
+                and feat.value is not None
+                and feat.unit
+                and feat.unit != UnitOfPressure.PSI
+            ):
+                return PressureConverter.convert(feat.value, feat.unit, UnitOfPressure.PSI)
             return feat.value
+
+    @property
+    def available(self):
+        return isinstance(self.feature(self._vehicle_feature), ToyotaNumeric)
+
 
     @property
     def state_class(self):

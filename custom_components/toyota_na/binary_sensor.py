@@ -12,13 +12,19 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .base_entity import ToyotaNABaseEntity
+from .base_entity import ToyotaNABaseEntity, vehicle_entity_unique_id
 from .const import BINARY_SENSORS, DOMAIN
+from .entity_discovery import setup_entity_discovery
 
 _LOGGER = logging.getLogger(__name__)
+
+_STRUCTURALLY_UNSUPPORTED_BACKDOOR_TYPES = {
+    VehicleFeatures.Trunk: {"tailgate"},
+}
 
 
 async def async_setup_entry(
@@ -27,37 +33,65 @@ async def async_setup_entry(
     async_add_devices: AddEntitiesCallback,
 ):
     """Set up the binary_sensor platform."""
-    binary_sensors = []
-
     coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
         config_entry.entry_id
     ]["coordinator"]
+    registry = er.async_get(hass)
 
-    for vehicle in coordinator.data:
-        for feature_sensor in BINARY_SENSORS:
-
-            entity_config = feature_sensor
-
-            if entity_config:
-                if vehicle.electric is False and cast(bool, entity_config["electric"]):
+    def discover_binary_sensors():
+        for vehicle in coordinator.data or []:
+            for entity_config in BINARY_SENSORS:
+                if vehicle.electric is False and cast(
+                    bool, entity_config["electric"]
+                ):
                     continue
-                if vehicle.subscribed is False and cast(bool, entity_config["subscription"]):
+                if vehicle.subscribed is False and cast(
+                    bool, entity_config["subscription"]
+                ):
                     continue
-                feature = vehicle.features.get(cast(VehicleFeatures, feature_sensor["feature"]))
-                if feature is None:
-                    continue
-                binary_sensors.append(
-                    ToyotaBinarySensor(
-                        cast(VehicleFeatures, feature_sensor["feature"]),
-                        cast(str, entity_config["icon"]),
-                        cast(BinarySensorDeviceClass, entity_config["device_class"]),
-                        coordinator,
-                        entity_config["name"],
-                        vehicle.vin,
+                feature = cast(VehicleFeatures, entity_config["feature"])
+                unsupported_backdoor_types = (
+                    _STRUCTURALLY_UNSUPPORTED_BACKDOOR_TYPES.get(feature)
+                )
+                if (
+                    unsupported_backdoor_types
+                    and getattr(vehicle, "backdoor_type", None)
+                    in unsupported_backdoor_types
+                ):
+                    stale_entity_id = registry.async_get_entity_id(
+                        "binary_sensor",
+                        DOMAIN,
+                        vehicle_entity_unique_id(
+                            vehicle.vin,
+                            cast(str, entity_config["name"]),
+                        ),
                     )
+                    if stale_entity_id is not None:
+                        _LOGGER.info(
+                            "Removing %s because it does not apply to "
+                            "backdoor type %s",
+                            stale_entity_id,
+                            vehicle.backdoor_type,
+                        )
+                        registry.async_remove(stale_entity_id)
+                    continue
+                if vehicle.features.get(feature) is None:
+                    continue
+                yield ToyotaBinarySensor(
+                    feature,
+                    cast(str, entity_config["icon"]),
+                    cast(BinarySensorDeviceClass, entity_config["device_class"]),
+                    coordinator,
+                    entity_config["name"],
+                    vehicle.vin,
                 )
 
-    async_add_devices(binary_sensors, True)
+    setup_entity_discovery(
+        config_entry,
+        coordinator,
+        async_add_devices,
+        discover_binary_sensors,
+    )
 
 
 class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
@@ -89,14 +123,13 @@ class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
     def is_on(self):
         sensor = self.feature(self._vehicle_feature)
 
-        if isinstance(sensor, ToyotaLockableOpening):
-            if self.device_class == BinarySensorDeviceClass.LOCK:
-                return not sensor.locked
-            elif self.device_class == BinarySensorDeviceClass.DOOR:
-                return not sensor.closed
-        elif isinstance(sensor, ToyotaOpening):
-            return not sensor.closed
-        elif isinstance(sensor, ToyotaRemoteStart):
+        if self.device_class == BinarySensorDeviceClass.LOCK:
+            if isinstance(sensor, ToyotaLockableOpening):
+                return None if sensor.locked is None else not sensor.locked
+            return None
+        if isinstance(sensor, ToyotaOpening):
+            return None if sensor.closed is None else not sensor.closed
+        if isinstance(sensor, ToyotaRemoteStart):
             if self.device_class == BinarySensorDeviceClass.RUNNING:
                 return sensor.on
 
@@ -122,4 +155,17 @@ class ToyotaBinarySensor(ToyotaNABaseEntity, BinarySensorEntity):
 
     @property
     def available(self):
-        return self.feature(self._vehicle_feature) is not None
+        sensor = self.feature(self._vehicle_feature)
+        if sensor is None:
+            return False
+        if self.device_class == BinarySensorDeviceClass.LOCK:
+            return (
+                isinstance(sensor, ToyotaLockableOpening)
+                and sensor.locked is not None
+            )
+        if (
+            self.device_class == BinarySensorDeviceClass.DOOR
+            and isinstance(sensor, ToyotaOpening)
+        ):
+            return sensor.closed is not None
+        return True

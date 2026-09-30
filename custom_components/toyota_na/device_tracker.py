@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .base_entity import ToyotaNABaseEntity
 from .const import DOMAIN
+from .entity_discovery import setup_entity_discovery
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,32 +29,31 @@ async def async_setup_entry(
     async_add_devices: AddEntitiesCallback,
 ):
     """Set up the device_tracker platform."""
-    locations = []
-
     coordinator: DataUpdateCoordinator[list[ToyotaVehicle]] = hass.data[DOMAIN][
         config_entry.entry_id
     ]["coordinator"]
 
-    for vehicle in coordinator.data:
-        for feature_sensor in features_sensors:
-            feature = vehicle.features.get(
-                cast(VehicleFeatures, feature_sensor["feature"])
-            )
-
-            entity_config = feature_sensor
-            if entity_config and isinstance(feature, ToyotaLocation):
-                if vehicle.subscribed is False and entity_config["name"] == "Last Parked Location":
-                    continue
-                locations.append(
-                    ToyotaDeviceTracker(
-                        cast(VehicleFeatures, feature_sensor["feature"]),
+    def discover_locations():
+        for vehicle in coordinator.data or []:
+            for entity_config in features_sensors:
+                vehicle_feature = cast(
+                    VehicleFeatures, entity_config["feature"]
+                )
+                feature = vehicle.features.get(vehicle_feature)
+                if isinstance(feature, ToyotaLocation):
+                    yield ToyotaDeviceTracker(
+                        vehicle_feature,
                         coordinator,
                         entity_config["name"],
                         vehicle.vin,
                     )
-                )
 
-    async_add_devices(locations, True)
+    setup_entity_discovery(
+        config_entry,
+        coordinator,
+        async_add_devices,
+        discover_locations,
+    )
 
 
 class ToyotaDeviceTracker(ToyotaNABaseEntity, TrackerEntity):

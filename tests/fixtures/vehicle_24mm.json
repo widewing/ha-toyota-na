@@ -1,0 +1,76 @@
+{
+  "vin": "TESTVIN24",
+  "lastUpdateDateTime": "2026-08-14T12:00:00Z",
+  "vehicleState": {
+    "lastUpdateDateTime": "2026-08-14T12:00:00Z",
+    "doors": {
+      "driverSide": {
+        "lock": {"status": "lock"},
+        "position": {"status": "close"}
+      },
+      "passengerSide": {
+        "lock": {"status": "unlock"},
+        "position": {"status": "open"}
+      }
+    },
+    "windows": {
+      "driverSide": {"position": {"status": "close"}},
+      "passengerSide": {"position": {"status": "close"}},
+      "rearDriverSide": {"position": {"status": "open"}},
+      "rearPassengerSide": {"position": {"status": "close"}}
+    },
+    "tires": {
+      "lastUpdateDateTime": "2026-08-14T11:59:00Z",
+      "frontLeft": {"psi": 35.1},
+      "frontRight": {"psi": 35.3},
+      "rearLeft": {"psi": 34.8},
+      "rearRight": {"psi": 35.0},
+      "spare": {"kpa": {"value": 240, "unit": "kPa"}}
+    },
+    "trunk": {
+      "lock": {"status": "lock"},
+      "position": {"status": "close"}
+    },
+    "engine": {
+      "running": false,
+      "lastUpdateDateTime": "2026-08-14T12:00:00Z"
+    }
+  },
+  "location": {
+    "latitude": 34.0522,
+    "longitude": -118.2437,
+    "lastUpdateDateTime": "2026-08-14T11:58:00Z"
+  },
+  "telemetry": {
+    "lastUpdateDateTime": "2026-08-14T11:57:00Z",
+    "odo": {"unit": "mi", "value": 1234},
+    "fugage": {"unit": "%", "value": 75},
+    "range": {"unit": "mi", "value": 410}
+  },
+  "tripdetails": {
+    "lastUpdateDateTime": "2026-08-14T11:56:00Z",
+    "tripA": {"unit": "mi", "value": 12.3},
+    "tripB": {"unit": "mi", "value": 45.6}
+  },
+  "electric": {
+    "lastUpdateDateTime": "2026-08-14T11:55:00Z",
+    "battery": {
+      "chargeRemainingAmount": {"unit": "%", "value": 90},
+      "plugInEnergy": {"unit": "%", "value": 95},
+      "stateOfChargeDisplay": {"unit": "%", "value": 100},
+      "travelableDistance": {"unit": "mi", "value": 48},
+      "travelableDistanceAC": {"unit": "mi", "value": 42}
+    },
+    "charging": {
+      "lastUpdateDateTime": "2026-08-14T11:55:00Z",
+      "chargeType": "AC",
+      "chargingStatus": "active",
+      "chargingState": "charging",
+      "remainingChargeTime": {"unit": "min", "value": 20},
+      "connector": {
+        "status": "connected",
+        "plugStatus": "plugged_in"
+      }
+    }
+  }
+}

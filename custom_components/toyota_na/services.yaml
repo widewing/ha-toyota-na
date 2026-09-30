@@ -38,6 +38,16 @@ hazards_off:
       selector:
         device:
           integration: toyota_na
+find_vehicle:
+  description: Ask a supported Toyota or Lexus vehicle to identify its location.
+  fields:
+    vehicle:
+      description:
+        Device (vehicle) you wish to find.
+      required: true
+      selector:
+        device:
+          integration: toyota_na
 door_lock:
   description: Lock your Toyota vehicle.
   fields:

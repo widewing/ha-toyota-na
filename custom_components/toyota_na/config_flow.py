@@ -1,18 +1,24 @@
 import logging
 
-from homeassistant import config_entries
 import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.core import callback
 
 from toyota_na import ToyotaOneAuth, ToyotaOneClient
 from toyota_na.exceptions import AuthError
 
 # Patch auth code
 from .patch_auth import authorize, login
+
 ToyotaOneAuth.authorize = authorize
 ToyotaOneAuth.login = login
-import json
 
-from .const import DOMAIN
+from .const import DOMAIN, REFRESH_STATUS_INTERVAL
+from .wake_policy import (
+    CONF_WAKE_INTERVAL,
+    WAKE_INTERVAL_OPTIONS,
+    automatic_wake_interval,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,18 +26,26 @@ _LOGGER = logging.getLogger(__name__)
 class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Toyota (North America) connected services"""
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Create the vehicle wake options flow."""
+        return ToyotaNAOptionsFlow(config_entry)
+
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
             try:
                 self.client = ToyotaOneClient()
                 self.user_info = user_input
-                await self.client.auth.authorize(user_input["username"], user_input["password"])
+                await self.client.auth.authorize(
+                    user_input["username"], user_input["password"]
+                )
                 return await self.async_step_otp()
             except AuthError:
                 errors["base"] = "not_logged_in"
                 _LOGGER.error("Not logged in with username and password")
-            except Exception as e:
+            except Exception:
                 errors["base"] = "unknown"
                 _LOGGER.exception("Unknown error with username and password")
         return self.async_show_form(
@@ -53,20 +67,22 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except AuthError:
                 errors["base"] = "not_logged_in"
                 _LOGGER.error("Not logged in with one time password")
-            except Exception as e:
+            except Exception:
                 errors["base"] = "unknown"
                 _LOGGER.exception("Unknown error with one time password")
         return self.async_show_form(
             step_id="otp",
-            data_schema=vol.Schema(
-                {vol.Required("code"): str}
-            ),
+            data_schema=vol.Schema({vol.Required("code"): str}),
             errors=errors,
         )
 
     async def async_get_entry_data(self, client, errors):
         try:
-            await client.auth.login(self.user_info["username"], self.user_info["password"], self.otp_info["code"])
+            await client.auth.login(
+                self.user_info["username"],
+                self.user_info["password"],
+                self.otp_info["code"],
+            )
             id_info = await client.auth.get_id_info()
             return {
                 "tokens": client.auth.get_tokens(),
@@ -77,7 +93,7 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except AuthError:
             errors["base"] = "otp_not_logged_in"
             _LOGGER.error("Invalid Verification Code")
-        except Exception as e:
+        except Exception:
             errors["base"] = "unknown"
             _LOGGER.exception("Unknown error")
 
@@ -91,3 +107,40 @@ class ToyotaNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, data):
         return await self.async_step_user()
+
+
+class ToyotaNAOptionsFlow(config_entries.OptionsFlow):
+    """Configure automatic vehicle wakes."""
+
+    def __init__(self, config_entry):
+        self._config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        """Manage vehicle wake options."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title="",
+                data={
+                    **user_input,
+                    CONF_WAKE_INTERVAL: int(user_input[CONF_WAKE_INTERVAL]),
+                },
+            )
+
+        current_interval = automatic_wake_interval(
+            self._config_entry.options, REFRESH_STATUS_INTERVAL
+        )
+        interval_options = {
+            str(interval): label for interval, label in WAKE_INTERVAL_OPTIONS.items()
+        }
+        interval_options.setdefault(str(current_interval), "Current default")
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_WAKE_INTERVAL, default=str(current_interval)
+                    ): vol.In(interval_options)
+                }
+            ),
+        )

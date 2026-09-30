@@ -1,26 +1,37 @@
 {
-    "config": {
-      "step": {
-        "user": {
-          "title": "Toyota Connected Services",
-          "description": "Please input the username and password",
-          "data": {
-            "username": "Username",
-            "password": "Password"
-          }
-        },
-        "otp": {
-          "title": "Verfication code",
-          "description": "Check email or phone for verification code",
-          "data": {
-            "code": "Verification Code"
-          }
+  "config": {
+    "step": {
+      "user": {
+        "title": "Toyota Connected Services",
+        "description": "Enter the username and password for your Toyota or Lexus account.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
         }
       },
-      "error": {
-        "not_logged_in": "Not logged in",
-        "otp_not_logged_in": "Invalid Verification code",
-        "unknown": "Unexpected error."
+      "otp": {
+        "title": "Verification code",
+        "description": "Check your email or phone for the verification code.",
+        "data": {
+          "code": "Verification code"
+        }
+      }
+    },
+    "error": {
+      "not_logged_in": "Not logged in",
+      "otp_not_logged_in": "Invalid verification code",
+      "unknown": "Unexpected error"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vehicle status updates",
+        "description": "Home Assistant keeps checking Toyota's cloud for available status without waking the vehicle. Cloud data may remain unchanged until the vehicle contacts Toyota. Choose how often Home Assistant should also wake the vehicle to request fresh status. Select Cloud updates only to disable automatic wakes. Refresh Status and remote commands remain available.",
+        "data": {
+          "automatic_wake_interval": "Wake vehicle for fresh status"
+        }
       }
     }
   }
+}

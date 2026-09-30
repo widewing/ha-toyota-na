@@ -36,8 +36,19 @@ Services:
 * Lock/Unlock Doors (Remote Subscription Required)
 * Remote Start/Stop Engine (Remote Subscription Required)
 * Hazards On/Off (Remote Subscription Required)
+* Find Vehicle (Remote Subscription and reported vehicle support required)
 * Refresh Data
+
+Native controls:
+* Door lock
+* Remote Start and Remote Stop buttons
+* Flash Hazards button
+* Find Vehicle button, when reported supported
+* Refresh Status button
+
 ## Installation
+Requires Home Assistant 2022.11 or newer.
+
 ### HACS
 1. Install HACS: https://hacs.xyz/docs/setup/download
 2. Search and install "Toyota (North America)" in HACS integration store
@@ -55,6 +66,13 @@ Click "Add integration" from Home Assistant, search "Toyota (North America)", cl
 Enter your username and password, and then OTP for Toyota One App or Toyota Entune App and all set.
 
 After setting up, Most information in Toyota One app should be available in Home Assistant.
+
+Use the integration's Configure action to choose how vehicle status is updated.
+Home Assistant keeps checking Toyota's existing cloud data regardless of this
+setting. Cloud updates only disables scheduled wake requests while keeping
+remote commands and the Refresh Status button available. Choose an interval only
+when you want Home Assistant to wake the vehicle proactively for fresh status.
+
 ![image](https://user-images.githubusercontent.com/4755389/147372481-4d280b6e-6f61-434c-a768-f4a089f009c3.png)
 
 ## Credits
