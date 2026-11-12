@@ -1,5 +1,8 @@
+import asyncio
 import json
 import logging
+import re
+import time
 from urllib.parse import urljoin, urlencode
 import aiohttp
 
@@ -103,6 +106,92 @@ async def remote_request_17cyplus(self, vin, command):
         "v1/global/remote/command", {"command": command},
         {"VIN": vin, "X-BRAND": "T", "x-region": "US"}
     )
+
+# --- Remote command results ---
+#
+# remote/command only reports that Toyota's backend queued the request. The vehicle's actual
+# verdict arrives later as a coded message in the account's notification history (the feed
+# the official app's inbox shows, e.g. "...: The vehicle is now locked. [DL1]"). When the
+# vehicle refuses a command, remote/status and engine-status do not change, so polling them
+# cannot distinguish "refused" from "not answered yet"; this feed is the only signal.
+#
+# Codes observed on a 2023 Highlander Hybrid (17CY+). True = success, False = refused.
+REMOTE_COMMAND_RESULT_CODES = {
+    "DL1": (True, "Vehicle locked"),
+    "DL0": (True, "Vehicle unlocked"),
+    "D0": (True, "Doors were already locked"),
+    "RES1": (True, "Engine started"),
+    "D1": (False, "Refused: vehicle not secured (doors, trunk and hood closed and locked; key fob not inside)"),
+    "D3": (False, "Remote start disabled after two unattended 10-minute runs; open, close and lock a door to reset"),
+    "D7": (False, "Engine stop refused: engine was not started remotely"),
+    "40": (False, "Refused: vehicle in motion or remote climate is on"),
+}
+
+_RESULT_CODE_RE = re.compile(r"\[([A-Za-z0-9]+)\]\s*$")
+
+
+async def get_notification_history(self, vin):
+    """Account notification history (the official app's inbox), grouped per VIN."""
+    return await self.api_get("v2/notification/history", {"VIN": vin})
+
+
+def parse_remote_command_results(history, vin=None):
+    """Flatten a get_notification_history() payload into coded remote-command results.
+
+    Returns dicts, oldest first: message_id, date (ISO string), code, message, and success
+    (True/False for codes in REMOTE_COMMAND_RESULT_CODES, None for codes not seen yet).
+    Messages without a trailing [CODE] (e.g. rear-seat reminders) are skipped.
+    """
+    results = []
+    for group in history or []:
+        if vin is not None and group.get("vin") != vin:
+            continue
+        for n in group.get("notifications") or []:
+            if n.get("category") != "RemoteCommand":
+                continue
+            message = n.get("message") or ""
+            match = _RESULT_CODE_RE.search(message)
+            if not match:
+                continue
+            code = match.group(1)
+            known = REMOTE_COMMAND_RESULT_CODES.get(code)
+            results.append({
+                "message_id": n.get("messageId"),
+                "date": n.get("notificationDate"),
+                "code": code,
+                "message": message,
+                "success": known[0] if known else None,
+            })
+    results.sort(key=lambda r: r["date"] or "")
+    return results
+
+
+async def wait_for_remote_command_result(self, vin, known_message_ids, timeout=90, interval=4):
+    """Poll notification history until a coded result not in known_message_ids appears.
+
+    Snapshot the ids before sending the command:
+        before = {r["message_id"] for r in parse_remote_command_results(
+            await client.get_notification_history(vin), vin)}
+        await client.remote_request_17cyplus(vin, "door-lock")
+        result = await client.wait_for_remote_command_result(vin, before)
+
+    Returns the oldest new result dict (see parse_remote_command_results), or None on timeout.
+    The vehicle typically answers in 5-15 seconds.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        await asyncio.sleep(interval)
+        try:
+            history = await self.get_notification_history(vin)
+        except Exception as e:
+            _LOGGER.debug("notification history poll failed: %s", e)
+            continue
+        new = [r for r in parse_remote_command_results(history, vin)
+               if r["message_id"] not in known_message_ids]
+        if new:
+            return new[0]
+    return None
+
 
 async def get_vehicle_status_17cy(self, vin):
     """Legacy vehicle status."""

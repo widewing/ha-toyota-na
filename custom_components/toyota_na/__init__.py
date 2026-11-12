@@ -17,6 +17,8 @@ from .patch_client import (
     get_engine_status_17cyplus,
     send_refresh_request_17cyplus,
     remote_request_17cyplus,
+    get_notification_history,
+    wait_for_remote_command_result,
     get_vehicle_status_17cy,
     get_engine_status_17cy,
     send_refresh_request_17cy,
@@ -34,6 +36,8 @@ ToyotaOneClient.get_vehicle_status_17cyplus = get_vehicle_status_17cyplus
 ToyotaOneClient.get_engine_status_17cyplus = get_engine_status_17cyplus
 ToyotaOneClient.send_refresh_request_17cyplus = send_refresh_request_17cyplus
 ToyotaOneClient.remote_request_17cyplus = remote_request_17cyplus
+ToyotaOneClient.get_notification_history = get_notification_history
+ToyotaOneClient.wait_for_remote_command_result = wait_for_remote_command_result
 ToyotaOneClient.get_vehicle_status_17cy = get_vehicle_status_17cy
 ToyotaOneClient.get_engine_status_17cy = get_engine_status_17cy
 ToyotaOneClient.send_refresh_request_17cy = send_refresh_request_17cy
